@@ -25,6 +25,7 @@ import {
 import instrucaoPdf from './documento/Instrução.pdf';
 import capaHeaderImg from './documento/Captura de tela 2026-04-05 194744.jpg';
 import logoHeaderImg from './documento/27.1- Logo Vetorizado CFO 2026 - MIV .png';
+import fluxogramaImg from './documento/fluxograma.jpg';
 
 // --- SISTEMA DE TOAST (Substituto do alert) ---
 const showToast = (message, type = 'success') => {
@@ -185,6 +186,7 @@ export default function App() {
           {telaAtual === 'guia_legal' && <GuiaCrimes />}
           {telaAtual === 'modelos' && <ModelosReds />}
           {telaAtual === 'faq' && <FaqScreen />}
+          {telaAtual === 'fluxograma' && <FluxogramaScreen />}
         </div>
       </div>
     </div>
@@ -237,10 +239,42 @@ function CoverScreen({ setTelaAtual }) {
                 <FileText className="mr-2 h-4 w-4" strokeWidth={2} />
                 Baixar Instrução Em PDF
               </a>
+              <button
+                onClick={() => setTelaAtual('fluxograma')}
+                className="inline-flex w-full items-center justify-center rounded-[1.15rem] border border-zinc-300 bg-white px-5 py-4 text-sm font-black uppercase tracking-wide text-zinc-700 shadow-sm transition-colors hover:border-[#b79d4f] hover:bg-[#fff8e7]"
+              >
+                <ClipboardList className="mr-2 h-4 w-4" strokeWidth={2} />
+                Ver Fluxograma
+              </button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FluxogramaScreen() {
+  return (
+    <div className="p-4 pb-24 animate-in fade-in duration-300 print:hidden">
+      <div className="mb-4">
+        <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Fluxograma de Atendimento</h2>
+        <p className="text-sm text-zinc-500 mt-1">Visualização rápida para consulta no celular.</p>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-2xl p-3 shadow-sm">
+        <a href={fluxogramaImg} target="_blank" rel="noreferrer" className="block">
+          <img
+            src={fluxogramaImg}
+            alt="Fluxograma de atendimento"
+            className="w-full rounded-xl border border-zinc-100"
+          />
+        </a>
+      </div>
+
+      <p className="text-xs text-zinc-500 mt-3 text-center">
+        Toque na imagem para abrir em tamanho maior.
+      </p>
     </div>
   );
 }
@@ -260,14 +294,23 @@ function HomeScreen({ setTelaAtual }) {
           <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
             Bem-vindo ao Guia de Bolso. Selecione a fase do atendimento ou consulte as tipificações e manuais.
           </p>
-          <a
-            href={instrucaoPdf}
-            download="Instrução.pdf"
-            className="mt-3 inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-700 transition-colors hover:bg-yellow-50 hover:text-zinc-900"
-          >
-            <FileText className="mr-2 h-4 w-4" strokeWidth={2} />
-            Baixar instrução em PDF
-          </a>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href={instrucaoPdf}
+              download="Instrução.pdf"
+              className="inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-700 transition-colors hover:bg-yellow-50 hover:text-zinc-900"
+            >
+              <FileText className="mr-2 h-4 w-4" strokeWidth={2} />
+              Baixar instrução em PDF
+            </a>
+            <button
+              onClick={() => setTelaAtual('fluxograma')}
+              className="inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-700 transition-colors hover:bg-yellow-50 hover:text-zinc-900"
+            >
+              <ClipboardList className="mr-2 h-4 w-4" strokeWidth={2} />
+              Ver fluxograma
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1372,6 +1415,9 @@ function SegundaResposta({ setTelaAtual }) {
   const [step, setStep] = useState(1);
   const [dados, setDados] = useState({
     redsOrigem: '', contatoAutor: false, mpuVigente: false, riscoElevado: false, relacaoIntima: false, resumo: '',
+    dataHoraVisita: '', localVisita: '', vitimaLocalizada: '', formaContato: '',
+    estadoVitima: '', novoFato: '', descumprimentoMpu: false, localSeguro: '',
+    apoioRede: '', encaminhamentoFinal: '',
     vitima: { nome: '', rg: '', cpf: '', nasc: '', telefone: '', mae: '', endereco: '' }
   });
   
@@ -1391,12 +1437,26 @@ Nome da Mãe: ${dados.vitima.mae || '[N/I]'}
 Telefone: ${dados.vitima.telefone || '[N/I]'}
 Endereço: ${dados.vitima.endereco || '[N/I]'}
 
+[ DADOS DA VISITA ]
+Data / hora da visita: ${dados.dataHoraVisita || '[N/I]'}
+Local da visita: ${dados.localVisita || '[N/I]'}
+Vítima localizada: ${dados.vitimaLocalizada || '[N/I]'}
+Forma do contacto: ${dados.formaContato || '[N/I]'}
+Estado atual da vítima: ${dados.estadoVitima || '[N/I]'}
+Novo fato após o REDS anterior: ${dados.novoFato || '[N/I]'}
+Descumprimento de MPU: ${dados.descumprimentoMpu ? 'SIM' : 'NÃO'}
+Local seguro / situação atual: ${dados.localSeguro || '[N/I]'}
+Necessidade de apoio / rede: ${dados.apoioRede || '[N/I]'}
+
 [ SITUAÇÃO ATUAL ]
 Novos contactos ou ameaças do autor? ${dados.contatoAutor ? 'SIM' : 'NÃO'}
 MPU deferida e vigente? ${dados.mpuVigente ? 'SIM' : 'NÃO'}
 
 [ SÍNTESE DA VISITA ]
 ${dados.resumo || '[NÃO INFORMADO]'}
+
+[ ENCAMINHAMENTO FINAL ]
+${dados.encaminhamentoFinal || '[NÃO INFORMADO]'}
 
 [ TRIAGEM DA GUARNIÇÃO ]
 ${dados.riscoElevado 
@@ -1462,6 +1522,43 @@ ${dados.riscoElevado
           </div>
 
           <div className="space-y-4">
+            <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+              <h3 className="font-black text-zinc-800 uppercase tracking-widest text-[11px] border-b border-zinc-100 pb-2">Dados da Visita</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">Data / Hora</label>
+                  <input type="text" placeholder="Ex: 06/04/2026 14:30" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    value={dados.dataHoraVisita} onChange={e => setDados({...dados, dataHoraVisita: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">Local da Visita</label>
+                  <input type="text" placeholder="Ex: residência da vítima" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    value={dados.localVisita} onChange={e => setDados({...dados, localVisita: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">Vítima Localizada?</label>
+                  <select className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    value={dados.vitimaLocalizada} onChange={e => setDados({...dados, vitimaLocalizada: e.target.value})}>
+                    <option value="">Selecione...</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">Forma do Contacto</label>
+                  <select className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    value={dados.formaContato} onChange={e => setDados({...dados, formaContato: e.target.value})}>
+                    <option value="">Selecione...</option>
+                    <option value="Presencial">Presencial</option>
+                    <option value="Telefone">Telefone</option>
+                    <option value="Terceiro">Terceiro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2.5">
               <CheckboxCard 
                 label="O autor voltou a procurá-la/ameaçá-la?" 
@@ -1493,11 +1590,46 @@ ${dados.riscoElevado
               )}
             </div>
 
+            <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+              <h3 className="font-black text-zinc-800 uppercase tracking-widest text-[11px] border-b border-zinc-100 pb-2">Situação Atual e Encaminhamento</h3>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Estado Atual da Vítima</label>
+                <input type="text" placeholder="Ex: calma, abalada, na casa de familiar, com medo" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  value={dados.estadoVitima} onChange={e => setDados({...dados, estadoVitima: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Novo Fato Após o REDS</label>
+                <input type="text" placeholder="Ex: não houve / novas mensagens / nova ameaça verbal" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  value={dados.novoFato} onChange={e => setDados({...dados, novoFato: e.target.value})} />
+              </div>
+              <label className="flex items-center justify-between cursor-pointer rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <span className="text-sm font-bold text-zinc-800">Houve descumprimento de MPU?</span>
+                <input type="checkbox" className="w-5 h-5 rounded border-zinc-300 text-yellow-500 focus:ring-yellow-500 bg-white"
+                  checked={dados.descumprimentoMpu} onChange={e => setDados({...dados, descumprimentoMpu: e.target.checked})} />
+              </label>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Local Seguro / Situação Atual</label>
+                <input type="text" placeholder="Ex: permanece no local / foi para casa da mãe / endereço alterado" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  value={dados.localSeguro} onChange={e => setDados({...dados, localSeguro: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">Necessidade de Apoio / Rede</label>
+                <input type="text" placeholder="Ex: DEAM, apoio familiar, CRAS, atendimento médico" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  value={dados.apoioRede} onChange={e => setDados({...dados, apoioRede: e.target.value})} />
+              </div>
+            </div>
+
             <div>
               <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2">Resumo da Visita</label>
               <textarea rows="3" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium" 
                 value={dados.resumo} onChange={e => setDados({...dados, resumo: e.target.value})}
                 placeholder="Ex: A vítima encontra-se calma. Foi orientada a ligar 190 se o autor aparecer."></textarea>
+            </div>
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2">Encaminhamento Final</label>
+              <textarea rows="3" className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                value={dados.encaminhamentoFinal} onChange={e => setDados({...dados, encaminhamentoFinal: e.target.value})}
+                placeholder="Ex: vítima orientada, P3 cientificada, encaminhamento à RpPM, retorno se necessário."></textarea>
             </div>
           </div>
 
@@ -1516,7 +1648,29 @@ ${dados.riscoElevado
             <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Relatório Estruturado</h2>
             <p className="text-sm text-zinc-500 mt-1">Lista com os dados apurados para o REDS.</p>
           </div>
+
+          {(() => {
+            const redsPadraoVisita = modelosOficiais[2].texto;
+            const promptIaVisita = `Com base nos dados abaixo, redija um histórico policial de 2ª resposta (visita tranquilizadora) para REDS, em português formal, objetivo, técnico e impessoal.
+
+Regras:
+- Use apenas os dados fornecidos.
+- Não invente fatos.
+- Se algum dado estiver ausente, omita ou utilize redação neutra.
+- Organize o texto em narrativa corrida, no padrão policial militar.
+- Considere o modelo de referência abaixo apenas como base de estilo.
+
+MODELO DE REFERÊNCIA:
+${redsPadraoVisita}
+
+DADOS APURADOS:
+${textoReds2}
+
+TAREFA:
+Produza somente o histórico final da 2ª resposta, pronto para revisão policial.`;
           
+          return (
+            <>
           {dados.riscoElevado && dados.relacaoIntima ? (
              <div className="bg-red-50 border border-red-100 p-6 rounded-2xl shadow-sm text-center print:hidden">
                <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-red-500 animate-pulse" strokeWidth={2} />
@@ -1554,12 +1708,45 @@ ${dados.riscoElevado
             </pre>
           </div>
 
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm print:hidden">
+            <div className="flex justify-between items-center mb-3 border-b border-zinc-100 pb-2">
+              <span className="text-[11px] font-black text-zinc-500 tracking-widest uppercase ml-1">Modelo Padrão da 2ª Resposta</span>
+              <button
+                onClick={() => copyToClipboard(redsPadraoVisita)}
+                className="bg-zinc-100 hover:bg-yellow-500 text-zinc-700 hover:text-zinc-950 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
+              >
+                <Copy className="w-4 h-4 mr-1.5" strokeWidth={2} /> Copiar Modelo
+              </button>
+            </div>
+            <pre className="text-[11px] text-zinc-700 whitespace-pre-wrap font-mono bg-zinc-50/50 p-4 rounded-xl max-h-72 overflow-y-auto border border-zinc-100 leading-relaxed shadow-inner">
+              {redsPadraoVisita}
+            </pre>
+          </div>
+
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm print:hidden">
+            <div className="flex justify-between items-center mb-3 border-b border-zinc-100 pb-2">
+              <span className="text-[11px] font-black text-zinc-500 tracking-widest uppercase ml-1">Prompt Sugerido Para IA</span>
+              <button
+                onClick={() => copyToClipboard(promptIaVisita)}
+                className="bg-zinc-100 hover:bg-yellow-500 text-zinc-700 hover:text-zinc-950 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
+              >
+                <Copy className="w-4 h-4 mr-1.5" strokeWidth={2} /> Copiar Prompt
+              </button>
+            </div>
+            <pre className="text-[11px] text-zinc-700 whitespace-pre-wrap font-mono bg-zinc-50/50 p-4 rounded-xl max-h-72 overflow-y-auto border border-zinc-100 leading-relaxed shadow-inner">
+              {promptIaVisita}
+            </pre>
+          </div>
+
           <div className="flex space-x-3 pt-4 print:hidden">
             <button onClick={() => setStep(2)} className="bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-bold p-4 rounded-2xl transition-colors shadow-sm"><ChevronLeft className="w-6 h-6" strokeWidth={2} /></button>
             <button onClick={() => setTelaAtual('home')} className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide">
               <Save className="mr-2 w-5 h-5 text-yellow-500" strokeWidth={2.5} /> Finalizar
             </button>
           </div>
+            </>
+          );
+          })()}
         </div>
       )}
     </div>
