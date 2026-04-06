@@ -259,6 +259,10 @@ function CoverScreen({ setTelaAtual }) {
                 Ver Fluxograma
               </button>
             </div>
+
+            <p className="mx-auto max-w-sm text-xs leading-6 text-zinc-400">
+              Ferramenta de apoio operacional. Não substitui sistemas oficiais, procedimentos legais, normas institucionais ou validação humana.
+            </p>
           </div>
         </div>
       </div>
