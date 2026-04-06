@@ -162,7 +162,7 @@ export default function App() {
       <div className="w-full max-w-md bg-zinc-50 shadow-2xl flex flex-col relative overflow-hidden print:shadow-none print:max-w-none print:bg-white">
         {/* Header Institucional PMMG (Padrão Intranet) */}
         {telaAtual !== "capa" && (
-          <div className="bg-zinc-950 text-white px-4 py-0 flex items-center justify-between z-10 border-b-[3px] border-yellow-500 shadow-sm print:hidden">
+          <div className="bg-zinc-950 text-white p-4 py-0 flex items-center justify-between z-10 border-b-[3px] border-yellow-500 shadow-sm print:hidden">
             <div className="flex items-center space-x-4">
               <img
                 src={logoHeaderImg}
@@ -261,7 +261,8 @@ function CoverScreen({ setTelaAtual }) {
             </div>
 
             <p className="mx-auto max-w-sm text-xs leading-6 text-zinc-400">
-              Ferramenta de apoio operacional. Não substitui sistemas oficiais, procedimentos legais, normas institucionais ou validação humana.
+              Ferramenta de apoio operacional. Não substitui sistemas oficiais,
+              procedimentos legais, normas institucionais ou validação humana.
             </p>
           </div>
         </div>
