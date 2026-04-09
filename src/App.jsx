@@ -153,6 +153,49 @@ const copyToClipboard = async (text) => {
   }
 };
 
+const downloadTextFile = (filename, text) => {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showToast("Arquivo TXT gerado com sucesso.");
+};
+
+const getFonarRespostaLabel = (value) => {
+  if (value === "sim") return "SIM";
+  if (value === "nao") return "NÃO";
+  if (value === "nsna") return "NÃO SABE / N/A";
+  return "NÃO INFORMADO";
+};
+
+const buildFonarText = (fonar, observacoes = "") => {
+  const simCount = fonar.filter((a) => a === "sim").length;
+  const nsNaCount = fonar.filter((a) => a === "nsna").length;
+  const risco = calcularRisco(simCount, nsNaCount);
+
+  let respostasTexto = "";
+  perguntasFonar.forEach((pergunta, index) => {
+    respostasTexto += `${index + 1}. ${pergunta}\n-> R: ${getFonarRespostaLabel(fonar[index])}\n\n`;
+  });
+
+  return `=========================================
+FONAR AVULSO - AVALIAÇÃO DE RISCO
+=========================================
+Risco Calculado: ${risco.nivel.toUpperCase()}
+(Respostas SIM: ${simCount} | Respostas NS/NA: ${nsNaCount})
+
+Respostas Detalhadas:
+${respostasTexto.trim()}
+
+Observações Complementares:
+${observacoes || "[NÃO INFORMADO]"}`;
+};
+
 export default function App() {
   const [telaAtual, setTelaAtual] = useState("capa");
 
@@ -203,7 +246,9 @@ export default function App() {
           {telaAtual === "segunda" && (
             <SegundaResposta setTelaAtual={setTelaAtual} />
           )}
+          {telaAtual === "fonar" && <FonarAvulso setTelaAtual={setTelaAtual} />}
           {telaAtual === "guia_legal" && <GuiaCrimes />}
+          {telaAtual === "naturezas" && <NaturezasScreen />}
           {telaAtual === "modelos" && <ModelosReds />}
           {telaAtual === "faq" && <FaqScreen />}
           {telaAtual === "fluxograma" && <FluxogramaScreen />}
@@ -220,7 +265,7 @@ function CoverScreen({ setTelaAtual }) {
         <div className="overflow-hidden">
           <img
             src={capaHeaderImg}
-            alt="Cabeçalho do guia Maria da Penha"
+            alt="Cabeçalho do guia de violência doméstica"
             className="h-auto w-full object-contain"
           />
         </div>
@@ -229,7 +274,7 @@ function CoverScreen({ setTelaAtual }) {
           <div className="space-y-8">
             <div className="space-y-3">
               <h1 className="text-[1.95rem] font-black uppercase leading-[0.98] tracking-[-0.03em] text-zinc-950">
-                Guia De Apoio A Ocorrências De Maria Da Penha
+                Guia Operacional De Violência Doméstica
               </h1>
               <p className="mx-auto max-w-[16rem] text-sm font-medium uppercase tracking-[0.18em] text-[#b99749]">
                 Consulta operacional rápida
@@ -319,8 +364,8 @@ function HomeScreen({ setTelaAtual }) {
             IN 3.05.015/2026
           </h2>
           <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-            Bem-vindo ao Guia de Bolso. Selecione a fase do atendimento ou
-            consulte as tipificações e manuais.
+            Guia operacional para atendimento em violência doméstica. Selecione
+            a fase do atendimento ou consulte as tipificações e manuais.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a
@@ -387,6 +432,27 @@ function HomeScreen({ setTelaAtual }) {
           <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-zinc-500" />
         </button>
 
+        <button
+          onClick={() => setTelaAtual("fonar")}
+          className="w-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-900 p-5 rounded-2xl flex items-center shadow-sm transition-all active:scale-[0.98] group"
+        >
+          <div className="bg-zinc-100 p-3.5 rounded-xl mr-4 group-hover:bg-zinc-200 transition-colors">
+            <ShieldAlert
+              className="w-7 h-7 text-zinc-700"
+              strokeWidth={1.5}
+            />
+          </div>
+          <div className="text-left flex-1">
+            <span className="font-black text-lg block tracking-wide">
+              FONAR Avulso
+            </span>
+            <span className="text-xs text-zinc-500 mt-0.5 block font-medium">
+              Avaliação de risco fora da 1ª e 2ª resposta
+            </span>
+          </div>
+          <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-zinc-500" />
+        </button>
+
         <div className="pt-2">
           <div className="border-t border-zinc-200 w-16 mx-auto mb-4"></div>
         </div>
@@ -406,6 +472,23 @@ function HomeScreen({ setTelaAtual }) {
               </span>
               <span className="text-[11px] text-zinc-500 mt-0.5 block font-medium">
                 Guia rápido de enquadramento
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setTelaAtual("naturezas")}
+            className="w-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-900 p-4 rounded-2xl flex items-center shadow-sm transition-all active:scale-[0.98] group"
+          >
+            <div className="bg-zinc-100 p-2.5 rounded-xl mr-4 group-hover:bg-zinc-200 transition-colors">
+              <ClipboardList className="w-6 h-6 text-zinc-700" strokeWidth={1.5} />
+            </div>
+            <div className="text-left flex-1">
+              <span className="font-black text-[15px] block tracking-wide">
+                Naturezas REDS
+              </span>
+              <span className="text-[11px] text-zinc-500 mt-0.5 block font-medium">
+                Consulta rápida das naturezas da instrução
               </span>
             </div>
           </button>
@@ -543,6 +626,49 @@ const faqData = [
   },
 ];
 
+const naturezasData = [
+  {
+    grupo: "1ª Resposta",
+    codigo: "U 33.004",
+    titulo: "Atendimento de denúncia de infrações contra a mulher",
+    categoria: "Natureza Secundária",
+    explicacao:
+      "Usada para marcar o contexto de violência doméstica no REDS. Na 1ª resposta, não deve substituir a natureza principal do fato.",
+    quandoUsar:
+      "Na 1ª resposta, entra como natureza secundária. A natureza principal deve seguir o fato principal conforme a DIAO.",
+  },
+  {
+    grupo: "2ª Resposta",
+    codigo: "A 20.002",
+    titulo: "Visita tranquilizadora para vítima de violência doméstica",
+    categoria: "2ª Resposta",
+    explicacao:
+      "Natureza principal da visita tranquilizadora realizada em até 72 horas após a ocorrência inicial.",
+    quandoUsar:
+      "Na 2ª resposta, inclusive quando a vítima não for localizada e o histórico consignar a tentativa sem êxito.",
+  },
+  {
+    grupo: "2ª Resposta",
+    codigo: "U 33.004",
+    titulo: "Atendimento de denúncia de infrações contra a mulher",
+    categoria: "Natureza Secundária",
+    explicacao:
+      "Na visita tranquilizadora, permanece como natureza secundária para marcar o contexto de violência doméstica.",
+    quandoUsar:
+      "Na 2ª resposta, junto da A 20.002 no REDS.",
+  },
+  {
+    grupo: "1ª Resposta",
+    codigo: "G 02.024",
+    titulo: "Descumprimento de medida protetiva de urgência",
+    categoria: "Providência Penal",
+    explicacao:
+      "Natureza principal para os casos em que há violação da MPU, com necessidade de providências imediatas.",
+    quandoUsar:
+      "Na 1ª resposta, sempre que houver descumprimento de medida protetiva devidamente constatado.",
+  },
+];
+
 function FaqScreen() {
   const [openIndex, setOpenIndex] = useState(null);
 
@@ -603,6 +729,110 @@ function FaqScreen() {
                     <p className="text-zinc-600 text-[13px] leading-relaxed font-medium">
                       {faq.r}
                     </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NaturezasScreen() {
+  const [filtro, setFiltro] = useState("1ª Resposta");
+  const [openIndex, setOpenIndex] = useState(0);
+  const naturezasFiltradas = naturezasData.filter(
+    (item) => item.grupo === filtro,
+  );
+
+  return (
+    <div className="p-5 pb-24 animate-in fade-in duration-300">
+      <div className="mb-6">
+        <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+          Consulta Rápida de Naturezas
+        </h2>
+        <p className="text-sm text-zinc-500 mt-1">
+          Resumo operacional das naturezas mais úteis para a 1ª e a 2ª resposta.
+        </p>
+      </div>
+
+      <div className="bg-white border border-zinc-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm mb-6">
+        <ClipboardList
+          className="w-5 h-5 flex-shrink-0 text-zinc-700 mt-0.5"
+          strokeWidth={2}
+        />
+        <p className="text-xs leading-relaxed text-zinc-600 font-medium">
+          Use esta tela para confirmar rapidamente qual natureza aplicar e em que momento do protocolo ela costuma aparecer.
+        </p>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        {["1ª Resposta", "2ª Resposta"].map((item) => (
+          <button
+            key={item}
+            onClick={() => {
+              setFiltro(item);
+              setOpenIndex(0);
+            }}
+            className={`rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${
+              filtro === item
+                ? "border-yellow-400 bg-yellow-50 text-zinc-900"
+                : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+            }`}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        {naturezasFiltradas.map((item, idx) => {
+          const isOpen = openIndex === idx;
+          return (
+            <div
+              key={item.codigo}
+              className={`bg-white border ${isOpen ? "border-yellow-400 shadow-md ring-1 ring-yellow-400/20" : "border-zinc-200 shadow-sm"} rounded-2xl overflow-hidden transition-all duration-200`}
+            >
+              <button
+                onClick={() => setOpenIndex(isOpen ? null : idx)}
+                className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+              >
+                <div className="pr-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
+                    {item.categoria}
+                  </p>
+                  <h3
+                    className={`font-bold text-[14px] leading-tight ${isOpen ? "text-zinc-900" : "text-zinc-800"}`}
+                  >
+                    {item.codigo} - {item.titulo}
+                  </h3>
+                </div>
+                <div
+                  className={`p-2 rounded-xl flex-shrink-0 transition-colors ${isOpen ? "bg-yellow-100 text-yellow-700" : "bg-zinc-100 text-zinc-500"}`}
+                >
+                  <ChevronDown
+                    className={`w-4 h-4 transform transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+                    strokeWidth={2.5}
+                  />
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+                  <div className="border-t border-zinc-100 pt-3 space-y-3">
+                    <p className="text-zinc-700 text-[13px] leading-relaxed font-medium">
+                      {item.explicacao}
+                    </p>
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5">
+                        Quando usar
+                      </p>
+                      <p className="text-zinc-600 text-[13px] leading-relaxed font-medium">
+                        {item.quandoUsar}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -939,6 +1169,8 @@ REDS de Origem: [NÚMERO DO REDS DA 1ª RESPOSTA]
 
 Em cumprimento à IN 3.05.015/2026 (POP 1.03.059), a guarnição (Multimissão) realizou contato com a vítima, Sra. [NOME DA VÍTIMA], no intuito de verificar suas condições físicas e emocionais após o registro do crime de violência doméstica.
 
+[OPÇÃO 0 - VÍTIMA NÃO LOCALIZADA]: A guarnição realizou diligências no endereço disponível e por outros meios acessíveis, porém a vítima não foi localizada até o momento. Registra-se a tentativa sem êxito para fins de acompanhamento e controle operacional.
+
 SITUAÇÃO ATUAL DECLARADA PELA VÍTIMA:
 A vítima relatou novos contatos ou ameaças do autor? [SIM / NÃO]
 A vítima já possui MPU deferida e vigente pelo Juiz? [SIM / NÃO]
@@ -1258,11 +1490,230 @@ function CheckboxCard({ label, subtitle, checked, onChange, alert }) {
   );
 }
 
+function FonarAvulso({ setTelaAtual }) {
+  const [step, setStep] = useState(1);
+  const [fonar, setFonar] = useState(Array(19).fill(""));
+  const [observacoes, setObservacoes] = useState("");
+
+  const fonarIncompleto = fonar.includes("");
+  const textoFonar = !fonarIncompleto ? buildFonarText(fonar, observacoes) : "";
+  const simCount = fonar.filter((a) => a === "sim").length;
+  const nsNaCount = fonar.filter((a) => a === "nsna").length;
+  const risco = !fonarIncompleto ? calcularRisco(simCount, nsNaCount) : null;
+
+  return (
+    <div className="p-5 pb-24 print:p-0 print:pb-0">
+      <ProgressBar
+        step={step}
+        total={2}
+        labels={["Entrevista", "Relatório"]}
+      />
+
+      {step === 1 && (
+        <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+          <div className="sticky top-0 bg-zinc-50 pt-2 pb-2 z-10">
+            <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+              FONAR Avulso
+            </h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Use quando a guarnição precisar apenas da avaliação de risco.
+            </p>
+
+            <div className="bg-white p-3.5 mt-4 rounded-xl flex items-start space-x-3 shadow-sm border border-zinc-200">
+              <MessageCircleQuestion
+                className="w-5 h-5 flex-shrink-0 text-zinc-400 mt-0.5"
+                strokeWidth={2}
+              />
+              <p className="text-xs leading-relaxed text-zinc-600 font-medium">
+                Responda às 19 questões para calcular o risco. Ao final, o
+                sistema libera um resumo para copiar ou salvar em arquivo.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            {perguntasFonar.map((pergunta, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-2xl border transition-all duration-200 shadow-sm ${fonar[idx] === "sim" ? "bg-red-50/50 border-red-200" : fonar[idx] === "nao" ? "bg-emerald-50/50 border-emerald-200" : fonar[idx] === "nsna" ? "bg-zinc-100 border-zinc-200" : "bg-white border-zinc-200"}`}
+              >
+                <p className="text-[13px] font-bold text-zinc-800 mb-3.5 leading-snug">
+                  <span className="text-yellow-600 mr-1.5 font-black">
+                    {idx + 1}.
+                  </span>{" "}
+                  {pergunta}
+                </p>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <button
+                    onClick={() => {
+                      const nf = [...fonar];
+                      nf[idx] = "sim";
+                      setFonar(nf);
+                    }}
+                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "sim" ? "bg-red-500 text-white shadow-md ring-2 ring-red-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                  >
+                    Sim
+                  </button>
+                  <button
+                    onClick={() => {
+                      const nf = [...fonar];
+                      nf[idx] = "nao";
+                      setFonar(nf);
+                    }}
+                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "nao" ? "bg-emerald-500 text-white shadow-md ring-2 ring-emerald-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                  >
+                    Não
+                  </button>
+                  <button
+                    onClick={() => {
+                      const nf = [...fonar];
+                      nf[idx] = "nsna";
+                      setFonar(nf);
+                    }}
+                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "nsna" ? "bg-zinc-700 text-white shadow-md ring-2 ring-zinc-700/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                  >
+                    NS / NA
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {risco && (
+            <div
+              className={`${risco.cor} text-white p-4 rounded-2xl text-center shadow-lg border border-black/10`}
+            >
+              <p className="text-[10px] font-black opacity-90 uppercase tracking-widest mb-1 text-white/80">
+                Nível de Risco Calculado no FONAR
+              </p>
+              <p className="text-2xl font-black uppercase tracking-widest drop-shadow-sm">
+                {risco.nivel}
+              </p>
+            </div>
+          )}
+
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm">
+            <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+              Observações Complementares
+            </label>
+            <textarea
+              rows="4"
+              className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex: entrevista feita no local; vítima orientada; avaliação usada para subsidiar decisão operacional."
+            ></textarea>
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <button
+              onClick={() => setTelaAtual("home")}
+              className="bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-bold p-4 rounded-2xl transition-colors shadow-sm"
+            >
+              <Home className="w-6 h-6" strokeWidth={2} />
+            </button>
+            <button
+              onClick={() => setStep(2)}
+              disabled={fonarIncompleto}
+              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${
+                fonarIncompleto
+                  ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
+                  : "bg-zinc-950 hover:bg-zinc-800 text-white active:scale-[0.98]"
+              }`}
+            >
+              Gerar Relatório
+              <ChevronRight
+                className={`ml-2 w-5 h-5 ${fonarIncompleto ? "text-zinc-300" : "text-yellow-500"}`}
+                strokeWidth={2.5}
+              />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+          <div className="print:hidden">
+            <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+              Relatório do FONAR
+            </h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Resultado pronto para copiar ou salvar em outro local.
+            </p>
+          </div>
+
+          <div
+            className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm print:border-none print:shadow-none print:p-0"
+            id="print-area-fonar"
+          >
+            <div className="flex justify-between items-center mb-3 border-b border-zinc-100 pb-2 print:hidden">
+              <span className="text-[11px] font-black text-zinc-500 tracking-widest uppercase ml-1">
+                Resumo Estruturado
+              </span>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => copyToClipboard(textoFonar)}
+                  className="bg-zinc-100 hover:bg-yellow-500 text-zinc-700 hover:text-zinc-950 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
+                >
+                  <Copy className="w-4 h-4 mr-1.5" strokeWidth={2} />
+                  Copiar
+                </button>
+                <button
+                  onClick={() => downloadTextFile("fonar-avulso.txt", textoFonar)}
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
+                >
+                  <Save className="w-4 h-4 mr-1.5" strokeWidth={2} />
+                  Salvar TXT
+                </button>
+              </div>
+            </div>
+
+            <pre className="text-[11px] text-zinc-600 whitespace-pre-wrap font-mono bg-zinc-50/50 p-4 rounded-xl max-h-96 overflow-y-auto border border-zinc-100 leading-relaxed print:max-h-full print:bg-white print:border-none print:text-black print:text-[12px] print:overflow-visible">
+              {textoFonar}
+            </pre>
+          </div>
+
+          <div className="flex space-x-3 pt-4 print:hidden">
+            <button
+              onClick={() => setStep(1)}
+              className="bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-bold p-4 rounded-2xl transition-colors shadow-sm"
+            >
+              <ChevronLeft className="w-6 h-6" strokeWidth={2} />
+            </button>
+            <button
+              onClick={() => setTelaAtual("home")}
+              className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide"
+            >
+              <CheckCircle2
+                className="mr-2 w-5 h-5 text-yellow-500"
+                strokeWidth={2.5}
+              />
+              Finalizar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==========================================
 // FLUXO DE PRIMEIRA RESPOSTA (5 Passos)
 // ==========================================
 function PrimeiraResposta({ setTelaAtual }) {
   const [step, setStep] = useState(1);
+  const hoje = new Date();
+  const prazoRetorno = new Date(hoje);
+  prazoRetorno.setDate(prazoRetorno.getDate() + 3);
+  const formatarData = (data) =>
+    new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "America/Sao_Paulo",
+    }).format(data);
+  const hojeFormatado = formatarData(hoje);
+  const prazoRetornoFormatado = formatarData(prazoRetorno);
 
   // Estado estruturado para pessoas
   const [dados, setDados] = useState({
@@ -1314,15 +1765,8 @@ function PrimeiraResposta({ setTelaAtual }) {
     destinoAutor: "",
     acompanhamento: "",
   });
-
   // Controlo de Abas Abertas
   const [openPessoaIndex, setOpenPessoaIndex] = useState("vitima");
-
-  // Checklists da Cena
-  const [check1, setCheck1] = useState(false);
-  const [check2, setCheck2] = useState(false);
-  const [check3, setCheck3] = useState(false);
-  const [check4, setCheck4] = useState(false);
 
   const [fonar, setFonar] = useState(Array(19).fill(""));
 
@@ -1398,33 +1842,93 @@ function PrimeiraResposta({ setTelaAtual }) {
             </p>
           </div>
 
+          <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
+            <AlertTriangle
+              className="w-6 h-6 flex-shrink-0 text-red-500 mt-0.5"
+              strokeWidth={2.5}
+            />
+            <div className="flex flex-col">
+              <span className="text-[11px] font-black text-red-700 uppercase tracking-widest mb-1">
+                Envolvimento de Policial Militar
+              </span>
+              <p className="text-sm leading-relaxed text-red-900 font-medium">
+                Se a vítima ou o autor forem policiais militares,{" "}
+                <strong>não se cumpre a 2ª resposta</strong>. Nessa hipótese,
+                anuncie o <strong>CPU imediatamente</strong> e providencie o
+                encaminhamento conforme o protocolo de 3ª resposta.
+              </p>
+            </div>
+          </div>
+
           <div className="space-y-3 pt-2">
             <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1 ml-1">
-              Checklist Obrigatório
+              Pontos Críticos do Registro
             </h3>
 
-            <CheckboxCard
-              label="As partes foram separadas em segurança?"
-              checked={check1}
-              onChange={(e) => setCheck1(e.target.checked)}
-            />
-            <CheckboxCard
-              label="A vítima precisa de socorro médico urgente?"
-              checked={check2}
-              onChange={(e) => setCheck2(e.target.checked)}
-            />
-            <CheckboxCard
-              label="Há flagrante delito ou quebra de Medida Protetiva?"
-              alert="Atenção: Não faça TCO nestes casos."
-              checked={check3}
-              onChange={(e) => setCheck3(e.target.checked)}
-            />
-            <CheckboxCard
-              label="Há crianças no local?"
-              subtitle="Elas não devem ser interrogadas. Anote apenas revelações espontâneas."
-              checked={check4}
-              onChange={(e) => setCheck4(e.target.checked)}
-            />
+            <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-yellow-800 mb-1.5">
+                  FONAR
+                </p>
+                <p className="text-sm leading-relaxed text-zinc-700 font-medium">
+                  O <strong>FONAR</strong> é essencial para subsidiar a{" "}
+                  <strong>classificação do risco</strong>, orientar o
+                  encaminhamento da ocorrência e definir a necessidade de 2ª ou
+                  3ª resposta.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-zinc-700 mb-1.5">
+                  Natureza da 1ª Resposta
+                </p>
+                <p className="text-sm leading-relaxed text-zinc-700 font-medium">
+                  Na <strong>1ª resposta</strong>, a natureza principal deve
+                  seguir o <strong>fato principal</strong> conforme a DIAO,
+                  evitando usar a <strong>U 33.004</strong> como principal. A{" "}
+                  <strong>U 33.004</strong> entra como natureza secundária para
+                  marcar o contexto de violência doméstica.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-zinc-700 mb-1.5">
+                  Endereço do Fato
+                </p>
+                <p className="text-sm leading-relaxed text-zinc-700 font-medium">
+                  No REDS, tenha atenção ao <strong>endereço do fato</strong>.
+                  Não registre automaticamente o endereço da vítima nem o do
+                  autor se o evento ocorreu em local diverso. Cadastre o local
+                  exato da ocorrência.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-red-700 mb-1.5">
+                  U33 e Prazo de Retorno
+                </p>
+                <p className="text-sm leading-relaxed text-red-900 font-medium">
+                  Cadastre corretamente o <strong>U33</strong>. Sem esse
+                  lançamento, o filtro da <strong>P3</strong> pode não localizar
+                  a ocorrência como violência doméstica e o <strong>FONAR</strong>{" "}
+                  pode não ser aberto no REDS. Considerando a data de hoje,{" "}
+                  <strong>{hojeFormatado}</strong>, a visita de retorno deve
+                  ocorrer até <strong>{prazoRetornoFormatado}</strong>.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-amber-700 mb-1.5">
+                  Atenção aos Dados do App
+                </p>
+                <p className="text-sm leading-relaxed text-amber-900 font-medium">
+                  Se sair desta tela sem copiar os dados,{" "}
+                  <strong>as informações serão perdidas</strong>. Copie o
+                  conteúdo para um rascunho antes de fechar, pois ao encerrar a
+                  tela o preenchimento é apagado.
+                </p>
+              </div>
+            </div>
           </div>
 
           <button
@@ -2312,6 +2816,7 @@ function SegundaResposta({ setTelaAtual }) {
   const [step, setStep] = useState(1);
   const [dados, setDados] = useState({
     redsOrigem: "",
+    fonarPreenchidoPrimeiraResposta: "",
     contatoAutor: false,
     mpuVigente: false,
     riscoElevado: false,
@@ -2321,6 +2826,7 @@ function SegundaResposta({ setTelaAtual }) {
     localVisita: "",
     vitimaLocalizada: "",
     formaContato: "",
+    contextoOcorrenciaAnterior: "",
     estadoVitima: "",
     novoFato: "",
     descumprimentoMpu: false,
@@ -2339,13 +2845,37 @@ function SegundaResposta({ setTelaAtual }) {
   });
 
   const [openPessoaIndex, setOpenPessoaIndex] = useState("vitima");
+  const [fonar2, setFonar2] = useState(Array(19).fill(""));
   const updateVitima = (field, val) =>
     setDados({ ...dados, vitima: { ...dados.vitima, [field]: val } });
+  const vitimaNaoLocalizada = dados.vitimaLocalizada === "Não";
+  const exigeFonarAgora = dados.fonarPreenchidoPrimeiraResposta === "nao";
+  const fonar2Incompleto =
+    exigeFonarAgora && !vitimaNaoLocalizada && fonar2.includes("");
+  const simCount2 = fonar2.filter((a) => a === "sim").length;
+  const nsNaCount2 = fonar2.filter((a) => a === "nsna").length;
+  const riscoFonar2 =
+    exigeFonarAgora && !fonar2Incompleto
+      ? calcularRisco(simCount2, nsNaCount2)
+      : null;
+
+  let respostasFonar2 = "";
+  if (exigeFonarAgora && !fonar2Incompleto) {
+    perguntasFonar.forEach((pergunta, index) => {
+      let resp = "NÃO INFORMADO";
+      if (fonar2[index] === "sim") resp = "SIM";
+      else if (fonar2[index] === "nao") resp = "NÃO";
+      else if (fonar2[index] === "nsna") resp = "NÃO SABE / N/A";
+      respostasFonar2 += `${index + 1}. ${pergunta}\n-> R: ${resp}\n\n`;
+    });
+  }
 
   const textoReds2 = `=========================================
 ATENDIMENTO DE 2ª RESPOSTA - VISITA TRANQUILIZADORA
 =========================================
-REDS de Origem: ${dados.redsOrigem || "[N/I]"}
+Natureza principal no REDS: A 20.002 - Visita tranquilizadora para vítima de violência doméstica
+Natureza secundária no REDS: U 33.004 - Atendimento de denúncia de infrações contra a mulher (violência doméstica)
+REDS de Origem: ${dados.redsOrigem || "[PENDENTE - COMPLEMENTAR NO HISTÓRICO]"}
 
 [ DADOS DA VÍTIMA ]
 Nome: ${dados.vitima.nome || "[N/I]"}
@@ -2360,6 +2890,7 @@ Data / hora da visita: ${dados.dataHoraVisita || "[N/I]"}
 Local da visita: ${dados.localVisita || "[N/I]"}
 Vítima localizada: ${dados.vitimaLocalizada || "[N/I]"}
 Forma do contacto: ${dados.formaContato || "[N/I]"}
+Contexto da ocorrência anterior: ${dados.contextoOcorrenciaAnterior || "[N/I]"}
 Estado atual da vítima: ${dados.estadoVitima || "[N/I]"}
 Novo fato após o REDS anterior: ${dados.novoFato || "[N/I]"}
 Descumprimento de MPU: ${dados.descumprimentoMpu ? "SIM" : "NÃO"}
@@ -2375,6 +2906,25 @@ ${dados.resumo || "[NÃO INFORMADO]"}
 
 [ ENCAMINHAMENTO FINAL ]
 ${dados.encaminhamentoFinal || "[NÃO INFORMADO]"}
+
+[ FONAR ]
+FONAR preenchido na 1ª resposta? ${
+  dados.fonarPreenchidoPrimeiraResposta === "sim"
+    ? "SIM"
+    : dados.fonarPreenchidoPrimeiraResposta === "nao"
+      ? "NÃO"
+      : "[N/I]"
+}
+${
+  vitimaNaoLocalizada
+    ? "Não foi possível complementar o FONAR nesta 2ª resposta, pois a vítima não foi localizada."
+    :
+  exigeFonarAgora && riscoFonar2
+    ? `FONAR preenchido nesta 2ª resposta: SIM\nRisco Calculado: ${riscoFonar2.nivel.toUpperCase()}\n(Respostas SIM: ${simCount2} | Respostas NS/NA: ${nsNaCount2})\n\nRespostas Detalhadas:\n${respostasFonar2.trim()}`
+    : exigeFonarAgora
+      ? "FONAR preenchido nesta 2ª resposta: PENDENTE"
+      : "Mantém-se o FONAR realizado na 1ª resposta."
+}
 
 [ TRIAGEM DA GUARNIÇÃO ]
 ${
@@ -2398,7 +2948,7 @@ ${
               Qualificação
             </h2>
             <p className="text-sm text-zinc-500 mt-1">
-              Dados para a Vítima no sistema REDS.
+              Dados da vítima para lançamento do REDS da 2ª resposta.
             </p>
           </div>
 
@@ -2416,6 +2966,62 @@ ${
                   setDados({ ...dados, redsOrigem: e.target.value })
                 }
               />
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
+              <Info
+                className="w-5 h-5 flex-shrink-0 text-amber-600 mt-0.5"
+                strokeWidth={2}
+              />
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-amber-700 uppercase tracking-widest mb-1">
+                  REDS Obrigatório
+                </span>
+                <p className="text-sm leading-relaxed text-amber-900 font-medium">
+                  É <strong>importantíssimo</strong> registrar o{" "}
+                  <strong>REDS da 2ª resposta</strong>. Se o número do REDS de
+                  origem não estiver disponível no momento, não deixe de
+                  produzir o registro: complemente essa informação no histórico
+                  assim que a tiver em mãos.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
+              <Info
+                className="w-5 h-5 flex-shrink-0 text-zinc-500 mt-0.5"
+                strokeWidth={2}
+              />
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mb-1">
+                  Natureza da 2ª Resposta
+                </span>
+                <p className="text-sm leading-relaxed text-zinc-700 font-medium">
+                  Na visita tranquilizadora, a natureza principal é a que
+                  começa com <strong>A</strong>:{" "}
+                  <strong>A 20.002 - Visita tranquilizadora para vítima de violência doméstica</strong>.
+                  A <strong>U 33.004</strong> permanece como natureza
+                  secundária no REDS, conforme a instrução.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
+              <AlertTriangle
+                className="w-6 h-6 flex-shrink-0 text-red-500 mt-0.5"
+                strokeWidth={2.5}
+              />
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-red-700 uppercase tracking-widest mb-1">
+                  Envolvimento de Policial Militar
+                </span>
+                <p className="text-sm leading-relaxed text-red-900 font-medium">
+                  Se a vítima ou o autor forem policiais militares,{" "}
+                  <strong>não se cumpre a 2ª resposta</strong>. Nessa hipótese,
+                  anuncie o <strong>CPU imediatamente</strong> e providencie o
+                  encaminhamento conforme o protocolo de 3ª resposta.
+                </p>
+              </div>
             </div>
 
             {/* ALERTA QAPP */}
@@ -2481,7 +3087,8 @@ ${
             <p className="text-sm leading-relaxed text-zinc-600 font-medium">
               A visita deve ser feita em até{" "}
               <strong className="text-zinc-900">72 horas</strong> após o facto.
-              Chegue de forma discreta para proteger a vítima.
+              Chegue de forma discreta para proteger a vítima e não deixe de
+              formalizar o atendimento no <strong>REDS</strong>.
             </p>
           </div>
 
@@ -2555,9 +3162,81 @@ ${
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  Contexto da Ocorrência Anterior
+                </label>
+                <textarea
+                  rows="4"
+                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                  value={dados.contextoOcorrenciaAnterior}
+                  onChange={(e) =>
+                    setDados({
+                      ...dados,
+                      contextoOcorrenciaAnterior: e.target.value,
+                    })
+                  }
+                  placeholder="Ex: data da ocorrência anterior, natureza principal anterior, síntese do fato, se houve flagrante, MPU e situação do autor. Use este campo para lembrar o que confirmar com a vítima."
+                ></textarea>
+              </div>
+
+              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 space-y-3">
+                <div className="flex items-start space-x-3">
+                  <MessageCircleQuestion
+                    className="w-5 h-5 flex-shrink-0 text-yellow-700 mt-0.5"
+                    strokeWidth={2}
+                  />
+                  <div>
+                    <p className="text-[11px] font-black text-yellow-800 uppercase tracking-widest mb-1">
+                      Conferência do FONAR
+                    </p>
+                    <p className="text-sm leading-relaxed text-yellow-900 font-medium">
+                      Caso o FONAR não tenha sido preenchido na 1ª resposta, é
+                      necessário realizá-lo agora antes de concluir o REDS.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                    O FONAR foi preenchido na 1ª resposta?
+                  </label>
+                  <select
+                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    value={dados.fonarPreenchidoPrimeiraResposta}
+                    onChange={(e) =>
+                      setDados({
+                        ...dados,
+                        fonarPreenchidoPrimeiraResposta: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="sim">Sim</option>
+                    <option value="nao">Não</option>
+                  </select>
+                </div>
+              </div>
+
+              {vitimaNaoLocalizada && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-[11px] font-black text-red-700 uppercase tracking-widest mb-1.5">
+                    Vítima Não Localizada
+                  </p>
+                  <p className="text-sm leading-relaxed text-red-900 font-medium">
+                    Se a vítima não for localizada, registre objetivamente no
+                    histórico as diligências realizadas e a tentativa sem êxito.
+                    Na 2ª resposta, a instrução prevê o registro no REDS com as
+                    mesmas naturezas da visita tranquilizadora, consignando a
+                    não localização da vítima.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-2.5">
+            {!vitimaNaoLocalizada && (
+              <div className="space-y-2.5">
               <CheckboxCard
                 label="O autor voltou a procurá-la/ameaçá-la?"
                 checked={dados.contatoAutor}
@@ -2572,9 +3251,11 @@ ${
                   setDados({ ...dados, mpuVigente: e.target.checked })
                 }
               />
-            </div>
+              </div>
+            )}
 
-            <div className="bg-red-50 border border-red-100 p-4 rounded-2xl space-y-4 shadow-sm mt-4">
+            {!vitimaNaoLocalizada && (
+              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl space-y-4 shadow-sm mt-4">
               <p className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center">
                 <AlertTriangle className="w-3.5 h-3.5 mr-1.5" strokeWidth={3} />{" "}
                 Triagem RpPM Especializada
@@ -2611,9 +3292,97 @@ ${
                   </label>
                 </div>
               )}
-            </div>
+              </div>
+            )}
 
-            <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+            {exigeFonarAgora && !vitimaNaoLocalizada && (
+              <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+                <div className="border-b border-zinc-100 pb-3">
+                  <h3 className="font-black text-zinc-800 uppercase tracking-widest text-[11px]">
+                    FONAR Pendente
+                  </h3>
+                  <p className="text-sm text-zinc-600 mt-2 leading-relaxed font-medium">
+                    Como o FONAR não foi preenchido na 1ª resposta, complete a
+                    entrevista agora para prosseguir com o REDS.
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 border border-zinc-200 p-3.5 rounded-xl flex items-start space-x-3">
+                  <MessageCircleQuestion
+                    className="w-5 h-5 flex-shrink-0 text-zinc-400 mt-0.5"
+                    strokeWidth={2}
+                  />
+                  <p className="text-xs leading-relaxed text-zinc-600 font-medium">
+                    Responda às 19 questões. O sistema só libera o relatório
+                    após o preenchimento completo.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {perguntasFonar.map((pergunta, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-2xl border transition-all duration-200 shadow-sm ${fonar2[idx] === "sim" ? "bg-red-50/50 border-red-200" : fonar2[idx] === "nao" ? "bg-emerald-50/50 border-emerald-200" : fonar2[idx] === "nsna" ? "bg-zinc-100 border-zinc-200" : "bg-white border-zinc-200"}`}
+                    >
+                      <p className="text-[13px] font-bold text-zinc-800 mb-3.5 leading-snug">
+                        <span className="text-yellow-600 mr-1.5 font-black">
+                          {idx + 1}.
+                        </span>{" "}
+                        {pergunta}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2.5">
+                        <button
+                          onClick={() => {
+                            const nf = [...fonar2];
+                            nf[idx] = "sim";
+                            setFonar2(nf);
+                          }}
+                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "sim" ? "bg-red-500 text-white shadow-md ring-2 ring-red-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          onClick={() => {
+                            const nf = [...fonar2];
+                            nf[idx] = "nao";
+                            setFonar2(nf);
+                          }}
+                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "nao" ? "bg-emerald-500 text-white shadow-md ring-2 ring-emerald-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                        >
+                          Não
+                        </button>
+                        <button
+                          onClick={() => {
+                            const nf = [...fonar2];
+                            nf[idx] = "nsna";
+                            setFonar2(nf);
+                          }}
+                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "nsna" ? "bg-zinc-700 text-white shadow-md ring-2 ring-zinc-700/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
+                        >
+                          NS / NA
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {riscoFonar2 && (
+                  <div
+                    className={`${riscoFonar2.cor} text-white p-4 rounded-2xl text-center shadow-lg border border-black/10`}
+                  >
+                    <p className="text-[10px] font-black opacity-90 uppercase tracking-widest mb-1 text-white/80">
+                      Nível de Risco Calculado no FONAR
+                    </p>
+                    <p className="text-2xl font-black uppercase tracking-widest drop-shadow-sm">
+                      {riscoFonar2.nivel}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!vitimaNaoLocalizada && (
+              <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
               <h3 className="font-black text-zinc-800 uppercase tracking-widest text-[11px] border-b border-zinc-100 pb-2">
                 Situação Atual e Encaminhamento
               </h3>
@@ -2686,18 +3455,25 @@ ${
                   }
                 />
               </div>
-            </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2">
-                Resumo da Visita
+                {vitimaNaoLocalizada
+                  ? "Resumo das Diligências"
+                  : "Resumo da Visita"}
               </label>
               <textarea
                 rows="3"
                 className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
                 value={dados.resumo}
                 onChange={(e) => setDados({ ...dados, resumo: e.target.value })}
-                placeholder="Ex: A vítima encontra-se calma. Foi orientada a ligar 190 se o autor aparecer."
+                placeholder={
+                  vitimaNaoLocalizada
+                    ? "Ex: Guarnição compareceu ao local, realizou contacto telefónico e diligências no endereço, porém a vítima não foi localizada."
+                    : "Ex: A vítima encontra-se calma. Foi orientada a ligar 190 se o autor aparecer."
+                }
               ></textarea>
             </div>
             <div>
@@ -2711,7 +3487,11 @@ ${
                 onChange={(e) =>
                   setDados({ ...dados, encaminhamentoFinal: e.target.value })
                 }
-                placeholder="Ex: vítima orientada, P3 cientificada, encaminhamento à RpPM, retorno se necessário."
+                placeholder={
+                  vitimaNaoLocalizada
+                    ? "Ex: Registro realizado consignando a tentativa sem êxito; P3 cientificada para acompanhamento."
+                    : "Ex: vítima orientada, P3 cientificada, encaminhamento à RpPM, retorno se necessário."
+                }
               ></textarea>
             </div>
           </div>
@@ -2725,11 +3505,29 @@ ${
             </button>
             <button
               onClick={() => setStep(3)}
-              className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide"
+              disabled={
+                !dados.vitimaLocalizada ||
+                (!vitimaNaoLocalizada &&
+                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
+              }
+              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${
+                !dados.vitimaLocalizada ||
+                (!vitimaNaoLocalizada &&
+                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
+                  ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
+                  : "bg-zinc-950 hover:bg-zinc-800 text-white active:scale-[0.98]"
+              }`}
             >
               Gerar Relatório{" "}
               <ChevronRight
-                className="ml-2 w-5 h-5 text-yellow-500"
+                className={`ml-2 w-5 h-5 ${
+                  !dados.vitimaLocalizada ||
+                  (!vitimaNaoLocalizada &&
+                    (!dados.fonarPreenchidoPrimeiraResposta ||
+                      fonar2Incompleto))
+                    ? "text-zinc-300"
+                    : "text-yellow-500"
+                }`}
                 strokeWidth={2.5}
               />
             </button>
@@ -2756,6 +3554,8 @@ Regras:
 - Use apenas os dados fornecidos.
 - Não invente fatos.
 - Se algum dado estiver ausente, omita ou utilize redação neutra.
+- Se a vítima não tiver sido localizada, redija o histórico consignando objetivamente as diligências realizadas, a tentativa sem êxito e a impossibilidade de colher declarações da vítima nesta oportunidade.
+- Se o número do REDS de origem estiver pendente, mantenha essa informação expressa para complementação posterior no histórico.
 - Organize o texto em narrativa corrida, no padrão policial militar.
 - Considere o modelo de referência abaixo apenas como base de estilo.
 
@@ -2797,8 +3597,10 @@ Produza somente o histórico final da 2ª resposta, pronto para revisão policia
                       Monitoramento Básico
                     </p>
                     <p className="text-sm mt-2 text-emerald-700 font-medium leading-relaxed">
-                      Finalize o REDS. A equipa multimissão voltará a fazer
-                      visitas se a P3 julgar necessário.
+                      Finalize o REDS da 2ª resposta e complemente o número do
+                      REDS de origem no histórico, caso ele ainda esteja
+                      pendente. A equipa multimissão voltará a fazer visitas se
+                      a P3 julgar necessário.
                     </p>
                   </div>
                 )}
