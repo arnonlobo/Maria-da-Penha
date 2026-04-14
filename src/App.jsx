@@ -21,6 +21,11 @@ import {
   PlusCircle,
   Trash2,
   HelpCircle,
+  MapPin,
+  Phone,
+  Clock3,
+  HeartHandshake,
+  ExternalLink,
 } from "lucide-react";
 import instrucaoPdf from "./documento/Instrução.pdf";
 import capaHeaderImg from "./documento/Captura de tela 2026-04-05 194744.jpg";
@@ -153,6 +158,308 @@ const copyToClipboard = async (text) => {
   }
 };
 
+const fonteRedeApoioContagem =
+  "https://portal.contagem.mg.gov.br/rede-de-protecao";
+
+const redeApoioContagem = [
+  {
+    categoria: "Emergência",
+    destaque: "Acionamento imediato",
+    itens: [
+      { nome: "Polícia Militar", telefones: ["190"] },
+      { nome: "Central de Atendimento à Mulher", telefones: ["180"] },
+      { nome: "Polícia Civil", telefones: ["181"] },
+      { nome: "Disque Direitos Humanos", telefones: ["100"] },
+      {
+        nome: "Guarda Civil de Contagem",
+        endereco: "Rua Vereador David de Oliveira da Costa, 14, Fonte Grande, Contagem, MG",
+        telefones: ["153"],
+      },
+    ],
+  },
+  {
+    categoria: "Acolhimento e Proteção",
+    destaque: "Encaminhamento social e abrigo",
+    itens: [
+      {
+        nome: "CEAM Bem-Me-Quero",
+        descricao:
+          "Acolhe, orienta e encaminha mulheres em situação de violência doméstica e familiar.",
+        endereco: "Rua José Carlos Camargos, 218, Centro, Contagem, MG",
+        telefones: ["(31) 3392-2794", "(31) 3392-2726", "(31) 97306-4310"],
+        horario: "Segunda a sexta, de 08h às 17h",
+        observacao: "O número 97306-4310 é WhatsApp.",
+      },
+      {
+        nome: "Abrigo Bela Vista",
+        endereco: "Rua São Gotardo, 57, Bela Vista, Contagem, MG",
+        telefones: [
+          "(31) 3391-1774",
+          "(31) 2564-2186",
+          "(31) 3352-5337",
+          "(31) 3353-3859",
+        ],
+      },
+      {
+        nome: "Secretaria Municipal da Mulher e da Juventude",
+        endereco: "Avenida José Faria da Rocha, 1.016, 3º andar, Eldorado, Contagem, MG",
+        telefones: ["(31) 3353-4188"],
+      },
+    ],
+  },
+  {
+    categoria: "Rede Jurídica",
+    destaque: "Providências policiais, judiciais e de proteção",
+    itens: [
+      {
+        nome: "DEAM Contagem",
+        descricao:
+          "Delegacia especializada para crimes baseados no gênero e violência sexual, conforme a competência legal.",
+        endereco: "Rua Capitão Antônio Joaquim da Paixão, 260, Centro, Contagem, MG",
+        telefones: ["(31) 3204-1650"],
+      },
+      {
+        nome: "NUDEM",
+        descricao:
+          "Núcleo da Defensoria Pública especializado na defesa dos direitos das mulheres.",
+        endereco: "Rua Reginaldo de Souza Lima, 625, Centro, Contagem, MG",
+        telefones: ["(31) 3390-2436", "(31) 3390-2466"],
+      },
+      {
+        nome: "Ministério Público de Contagem",
+        endereco: "Rua Capitão Antônio Joaquim da Paixão, 285, Centro, Contagem, MG",
+        telefones: ["(31) 3398-9862", "(31) 3398-5775"],
+      },
+      {
+        nome: "Fórum Doutor Pedro Aleixo",
+        endereco: "Avenida Maria da Glória Rocha, 425, Centro, Contagem, MG",
+        telefones: ["(31) 3399-8300"],
+      },
+      {
+        nome: "Procuradoria da Mulher",
+        endereco: "Praça São Gonçalo, 18, Centro, Contagem, MG",
+        telefones: ["(31) 3359-8700"],
+      },
+    ],
+  },
+  {
+    categoria: "Saúde",
+    destaque: "Atendimento médico e materno-infantil",
+    itens: [
+      {
+        nome: "Hospital Municipal / Centro Materno Infantil / Maternidade Municipal de Contagem",
+        endereco: "Avenida João César de Oliveira, 4.495, Eldorado, Contagem, MG",
+        telefones: ["(31) 3363-5300"],
+      },
+    ],
+  },
+  {
+    categoria: "Crianças e Adolescentes",
+    destaque: "Casos envolvendo filhos, guarda ou risco infantojuvenil",
+    itens: [
+      {
+        nome: "Conselho Tutelar - Plantão pela Guarda Civil",
+        descricao:
+          "Os Conselhos Tutelares funcionam de segunda a sexta, das 08h às 17h. Fora do horário, o plantão é acessado pelo 153.",
+        telefones: ["153"],
+      },
+      {
+        nome: "Conselho Tutelar Eldorado",
+        endereco: "Rua Sevilha, 55, Santa Cruz Industrial, Contagem, MG",
+        telefones: ["(31) 3396-3572", "(31) 97513-0030"],
+      },
+      {
+        nome: "Conselho Tutelar Industrial",
+        endereco: "Rua Rodolfo Jacob, 180, Industrial, Contagem, MG",
+        telefones: ["(31) 3361-3413", "(31) 97306-3565"],
+      },
+      {
+        nome: "Conselho Tutelar Nacional",
+        endereco: "Rua Quintino Bocaiuva, 1036, Pedra Azul, Contagem, MG",
+        telefones: ["(31) 3352-5614", "(31) 97506-4262"],
+      },
+      {
+        nome: "Conselho Tutelar Petrolândia",
+        endereco: "Rua Ipiranga, 08, Petrolândia, Contagem, MG",
+        telefones: ["(31) 3352-5755", "(31) 97306-5624"],
+      },
+      {
+        nome: "Conselho Tutelar Ressaca",
+        endereco: "Rua Monsenhor João Martins, 2121, Novo Progresso, Contagem, MG",
+        telefones: ["(31) 3352-5602", "(31) 97306-1353"],
+      },
+      {
+        nome: "Conselho Tutelar Sede",
+        endereco: "Rua Lincoln Costa Ferreira, 241, Fonte Grande, Contagem, MG",
+        telefones: ["(31) 3398-7342", "(31) 3398-7520", "(31) 97306-2184"],
+      },
+      {
+        nome: "Conselho Tutelar Vargem das Flores",
+        endereco: "Avenida Retiro dos Imigrantes, 1137, Retiro, Contagem, MG",
+        telefones: ["(31) 3352-5476", "(31) 3911-7032", "(31) 97306-5415"],
+      },
+    ],
+  },
+  {
+    categoria: "Apoio Complementar",
+    destaque: "Serviços úteis conforme o caso",
+    itens: [
+      {
+        nome: "Conselho Municipal da Mulher de Contagem",
+        endereco: "Rua José Carlos Camargos, 218, Centro, Contagem, MG",
+        telefones: ["(31) 3352-2726"],
+      },
+      {
+        nome: "Mulheres das Gerais",
+        endereco: "Rua Pernambuco, 1002, sala 1102, Savassi, Belo Horizonte, MG",
+        telefones: ["(31) 3484-2387"],
+      },
+      {
+        nome: "CEAPA",
+        descricao:
+          "Programa estadual ligado a alternativas penais, inclusive responsabilização de autores de violência contra a mulher.",
+        endereco: "Rua José da Costa Ferreira, 68, Alvorada, Contagem, MG",
+        telefones: ["(31) 3390-1465"],
+      },
+      {
+        nome: "Mediação de Conflitos - Nova Contagem",
+        endereco: "Rua VP-1, 1516, 2º andar, Nova Contagem, Contagem, MG",
+        telefones: ["(31) 3392-8039"],
+      },
+      {
+        nome: "Mediação de Conflitos - Ressaca",
+        endereco: "Rua Iguaçaba, 115, Vila Pérola, Contagem, MG",
+        telefones: ["(31) 3357-7579"],
+      },
+    ],
+  },
+];
+
+const resumoRedeApoio = redeApoioContagem
+  .flatMap((secao) =>
+    secao.itens.map((item) => {
+      const partes = [item.nome];
+      if (item.endereco) partes.push(item.endereco);
+      if (item.telefones?.length) {
+        partes.push(`Telefones: ${item.telefones.join(" / ")}`);
+      }
+      return partes.join(" - ");
+    }),
+  )
+  .join("\n");
+
+function RedeApoioCards() {
+  return (
+    <div className="space-y-5">
+      {redeApoioContagem.map((secao) => (
+        <section key={secao.categoria} className="space-y-3">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-950 px-4 py-3 text-white shadow-sm">
+            <p className="text-[11px] font-black uppercase tracking-widest text-yellow-400">
+              {secao.destaque}
+            </p>
+            <h3 className="mt-1 text-base font-black tracking-wide">
+              {secao.categoria}
+            </h3>
+          </div>
+
+          {secao.itens.map((item) => (
+            <div
+              key={item.nome}
+              className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+            >
+              <h4 className="text-sm font-black text-zinc-900">{item.nome}</h4>
+
+              {item.descricao && (
+                <p className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs font-medium leading-relaxed text-zinc-700">
+                  {item.descricao}
+                </p>
+              )}
+
+              <div className="mt-3 space-y-2 text-sm text-zinc-700">
+                {item.endereco && (
+                  <p className="flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-zinc-400" />
+                    <span>{item.endereco}</span>
+                  </p>
+                )}
+
+                {item.telefones?.length > 0 && (
+                  <p className="flex items-start gap-2">
+                    <Phone className="mt-0.5 h-4 w-4 flex-shrink-0 text-zinc-400" />
+                    <span>{item.telefones.join(" / ")}</span>
+                  </p>
+                )}
+
+                {item.horario && (
+                  <p className="flex items-start gap-2">
+                    <Clock3 className="mt-0.5 h-4 w-4 flex-shrink-0 text-zinc-400" />
+                    <span>{item.horario}</span>
+                  </p>
+                )}
+
+                {item.observacao && (
+                  <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                    {item.observacao}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function RedeApoioScreen() {
+  return (
+    <div className="p-5 pb-24 animate-in fade-in duration-300">
+      <div className="mb-6">
+        <h2 className="text-2xl font-black tracking-tight text-zinc-900">
+          Rede de Apoio
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Contatos úteis para encaminhamento em Contagem.
+        </p>
+      </div>
+
+      <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">
+              Conferência realizada
+            </p>
+            <p className="mt-1 text-sm font-medium leading-relaxed text-amber-900">
+              Os dados abaixo foram consolidados com base na página oficial
+              atual da Prefeitura de Contagem.
+            </p>
+            <a
+              href={fonteRedeApoioContagem}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100"
+            >
+              Fonte oficial
+              <ExternalLink className="ml-2 h-4 w-4" strokeWidth={2} />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <RedeApoioCards />
+
+      <button
+        onClick={() => copyToClipboard(resumoRedeApoio)}
+        className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-sm font-bold text-zinc-800 shadow-sm transition-colors hover:bg-zinc-100"
+      >
+        <Copy className="mr-2 h-4 w-4" strokeWidth={2} />
+        Copiar rede de apoio
+      </button>
+    </div>
+  );
+}
+
 const downloadTextFile = (filename, text) => {
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -249,6 +556,7 @@ export default function App() {
           {telaAtual === "fonar" && <FonarAvulso setTelaAtual={setTelaAtual} />}
           {telaAtual === "guia_legal" && <GuiaCrimes />}
           {telaAtual === "naturezas" && <NaturezasScreen />}
+          {telaAtual === "rede_apoio" && <RedeApoioScreen />}
           {telaAtual === "modelos" && <ModelosReds />}
           {telaAtual === "faq" && <FaqScreen />}
           {telaAtual === "fluxograma" && <FluxogramaScreen />}
@@ -489,6 +797,26 @@ function HomeScreen({ setTelaAtual }) {
               </span>
               <span className="text-[11px] text-zinc-500 mt-0.5 block font-medium">
                 Consulta rápida das naturezas da instrução
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setTelaAtual("rede_apoio")}
+            className="w-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-900 p-4 rounded-2xl flex items-center shadow-sm transition-all active:scale-[0.98] group"
+          >
+            <div className="bg-zinc-100 p-2.5 rounded-xl mr-4 group-hover:bg-zinc-200 transition-colors">
+              <HeartHandshake
+                className="w-6 h-6 text-zinc-700"
+                strokeWidth={1.5}
+              />
+            </div>
+            <div className="text-left flex-1">
+              <span className="font-black text-[15px] block tracking-wide">
+                Rede de Apoio
+              </span>
+              <span className="text-[11px] text-zinc-500 mt-0.5 block font-medium">
+                Contatos úteis oficiais de Contagem
               </span>
             </div>
           </button>
@@ -3447,7 +3775,7 @@ ${
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: DEAM, apoio familiar, CRAS, atendimento médico"
+                  placeholder="Ex: CEAM Bem-Me-Quero, DEAM, NUDEM, apoio familiar, atendimento médico"
                   className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
                   value={dados.apoioRede}
                   onChange={(e) =>
