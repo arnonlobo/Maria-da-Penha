@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useId, useState } from "react";
 import {
   ShieldAlert,
   ClipboardList,
@@ -53,7 +53,11 @@ function ToastContainer() {
   if (!toast) return null;
 
   return (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+    <div
+      className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300"
+      role={toast.type === "error" ? "alert" : "status"}
+      aria-live={toast.type === "error" ? "assertive" : "polite"}
+    >
       <div
         className={`px-4 py-3 rounded-xl shadow-lg border flex items-center space-x-2 ${
           toast.type === "error"
@@ -61,7 +65,11 @@ function ToastContainer() {
             : "bg-emerald-50 text-emerald-800 border-emerald-200"
         }`}
       >
-        <CheckCircle2 className="w-5 h-5" />
+        {toast.type === "error" ? (
+          <AlertTriangle className="w-5 h-5" />
+        ) : (
+          <CheckCircle2 className="w-5 h-5" />
+        )}
         <span className="text-sm font-bold">{toast.message}</span>
       </div>
     </div>
@@ -160,6 +168,77 @@ const copyToClipboard = async (text) => {
 
 const fonteRedeApoioContagem =
   "https://portal.contagem.mg.gov.br/rede-de-protecao";
+
+const DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
+const DRAFT_STORAGE_KEYS = {
+  fonar: "draft-fonar-avulso",
+  primeira: "draft-primeira-resposta",
+  segunda: "draft-segunda-resposta",
+};
+
+const createEmptyPerson = () => ({
+  nome: "",
+  rg: "",
+  cpf: "",
+  nasc: "",
+  telefone: "",
+  mae: "",
+  endereco: "",
+});
+
+const createInitialPrimeiraDados = () => ({
+  vitima: createEmptyPerson(),
+  autor: createEmptyPerson(),
+  testemunhas: [],
+  relacao: "",
+  temFilhos: "",
+  tempoRelacao: "",
+  tempoSeparacao: "",
+  residencia: "",
+  ciumento: false,
+  naoAceitaTermino: false,
+  usoDrogas: "",
+  arma: "",
+  motivo: "",
+  versaoVitima: "",
+  versaoAutor: "",
+  desordem: "",
+  socorro: "",
+  materiais: "",
+  mpu: "",
+  origemAcionamento: "",
+  dataHoraFato: "",
+  filhosDetalhe: "",
+  lesoes: "",
+  dizeresAutor: "",
+  danos: "",
+  provas: "",
+  destinoVitima: "",
+  destinoAutor: "",
+  acompanhamento: "",
+});
+
+const createInitialSegundaDados = () => ({
+  redsOrigem: "",
+  fonarPreenchidoPrimeiraResposta: "",
+  contatoAutor: false,
+  mpuVigente: false,
+  riscoElevado: false,
+  relacaoIntima: false,
+  resumo: "",
+  dataHoraVisita: "",
+  localVisita: "",
+  vitimaLocalizada: "",
+  formaContato: "",
+  contextoOcorrenciaAnterior: "",
+  estadoVitima: "",
+  novoFato: "",
+  descumprimentoMpu: false,
+  localSeguro: "",
+  apoioRede: "",
+  encaminhamentoFinal: "",
+  vitima: createEmptyPerson(),
+});
 
 const redeApoioContagem = [
   {
@@ -480,6 +559,343 @@ const getFonarRespostaLabel = (value) => {
   return "NÃO INFORMADO";
 };
 
+const fieldClassName =
+  "w-full rounded-xl border border-zinc-200 bg-white p-3.5 text-sm font-medium text-zinc-900 shadow-sm outline-none transition focus-visible:border-yellow-500 focus-visible:ring-2 focus-visible:ring-yellow-400";
+
+const compactFieldClassName =
+  "w-full rounded-xl border border-zinc-200 bg-zinc-50 p-2.5 text-sm font-medium text-zinc-900 outline-none transition focus-visible:border-yellow-500 focus-visible:ring-2 focus-visible:ring-yellow-400";
+
+const buttonFocusClassName =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-50";
+
+function ValidationMessage({ message, tone = "warning" }) {
+  const toneClasses =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : "border-amber-200 bg-amber-50 text-amber-900";
+
+  return (
+    <div
+      className={`rounded-xl border px-4 py-3 text-sm font-medium leading-relaxed ${toneClasses}`}
+      role="status"
+    >
+      {message}
+    </div>
+  );
+}
+
+function FonarQuestionCard({ pergunta, idx, value, onChange }) {
+  const questionId = `fonar-pergunta-${idx}`;
+  const options = [
+    {
+      value: "sim",
+      label: "Sim",
+      active: "bg-red-500 text-white shadow-md ring-2 ring-red-500/20",
+    },
+    {
+      value: "nao",
+      label: "Não",
+      active: "bg-emerald-500 text-white shadow-md ring-2 ring-emerald-500/20",
+    },
+    {
+      value: "nsna",
+      label: "NS / NA",
+      active: "bg-zinc-700 text-white shadow-md ring-2 ring-zinc-700/20",
+    },
+  ];
+
+  return (
+    <fieldset
+      className={`rounded-2xl border p-4 shadow-sm transition-all duration-200 ${
+        value === "sim"
+          ? "border-red-200 bg-red-50/50"
+          : value === "nao"
+            ? "border-emerald-200 bg-emerald-50/50"
+            : value === "nsna"
+              ? "border-zinc-200 bg-zinc-100"
+              : "border-zinc-200 bg-white"
+      }`}
+      aria-labelledby={questionId}
+    >
+      <legend
+        id={questionId}
+        className="mb-3.5 text-[13px] font-bold leading-snug text-zinc-800"
+      >
+        <span className="mr-1.5 font-black text-yellow-600">{idx + 1}.</span>
+        {pergunta}
+      </legend>
+
+      <div
+        className="grid grid-cols-3 gap-2.5"
+        role="radiogroup"
+        aria-labelledby={questionId}
+      >
+        {options.map((option) => {
+          const isSelected = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => onChange(option.value)}
+              className={`rounded-xl py-2.5 text-xs font-bold transition-all active:scale-[0.97] ${buttonFocusClassName} ${
+                isSelected
+                  ? option.active
+                  : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+const digitsOnly = (value = "") => value.replace(/\D/g, "");
+
+const normalizeInlineText = (value = "") =>
+  value
+    .replace(/\s+/g, " ")
+    .replace(/\s*([,.;:!?/()-])\s*/g, "$1 ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeMultilineText = (value = "") =>
+  value
+    .split("\n")
+    .map((line) => normalizeInlineText(line))
+    .filter(Boolean)
+    .join("\n");
+
+const normalizeCpf = (value = "") => {
+  const digits = digitsOnly(value).slice(0, 11);
+  if (!digits) return "";
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+};
+
+const normalizePhone = (value = "") => {
+  const digits = digitsOnly(value).slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
+const normalizeDate = (value = "") => {
+  const digits = digitsOnly(value).slice(0, 8);
+  if (!digits) return "";
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const normalizeDateTime = (value = "") => {
+  const digits = digitsOnly(value).slice(0, 12);
+  if (!digits) return "";
+  if (digits.length <= 8) return normalizeDate(digits);
+  const date = normalizeDate(digits.slice(0, 8));
+  const timeDigits = digits.slice(8);
+  if (timeDigits.length <= 2) return `${date} ${timeDigits}`;
+  return `${date} ${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}`;
+};
+
+const normalizeReds = (value = "") => {
+  const digits = digitsOnly(value).slice(0, 16);
+  if (!digits) return "";
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 13) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 13)}-${digits.slice(13)}`;
+};
+
+const normalizeRg = (value = "") =>
+  value
+    .toUpperCase()
+    .replace(/[^0-9A-Z.\-\/\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const validateCpf = (value = "") => {
+  const digits = digitsOnly(value);
+  if (!digits) return true;
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i += 1) sum += Number(digits[i]) * (10 - i);
+  let check = (sum * 10) % 11;
+  if (check === 10) check = 0;
+  if (check !== Number(digits[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i += 1) sum += Number(digits[i]) * (11 - i);
+  check = (sum * 10) % 11;
+  if (check === 10) check = 0;
+  return check === Number(digits[10]);
+};
+
+const validateDate = (value = "") => {
+  if (!value) return true;
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return false;
+  const [, dd, mm, yyyy] = match;
+  const day = Number(dd);
+  const month = Number(mm);
+  const year = Number(yyyy);
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+};
+
+const validateDateTime = (value = "") => {
+  if (!value) return true;
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/);
+  if (!match) return false;
+  const [, dd, mm, yyyy, hh, mi] = match;
+  if (!validateDate(`${dd}/${mm}/${yyyy}`)) return false;
+  const hour = Number(hh);
+  const minute = Number(mi);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+};
+
+const validatePhone = (value = "") => {
+  const digits = digitsOnly(value);
+  return !digits || digits.length === 10 || digits.length === 11;
+};
+
+const validateRg = (value = "") => {
+  if (!value) return true;
+  return /^[0-9A-Z.\-\/\s]{5,20}$/.test(value);
+};
+
+const validateReds = (value = "") =>
+  !value || /^\d{4}-\d{9}-\d{3}$/.test(value);
+
+const readDraft = (storageKey) => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
+};
+
+const saveDraft = (storageKey, payload) => {
+  if (typeof window === "undefined") return;
+  try {
+    const savedAt = Date.now();
+    const draft = {
+      ...payload,
+      savedAt,
+      expiresAt: savedAt + DRAFT_TTL_MS,
+    };
+    window.localStorage.setItem(storageKey, JSON.stringify(draft));
+  } catch {
+    // Silently ignore quota or storage issues.
+  }
+};
+
+const clearDraft = (storageKey) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(storageKey);
+};
+
+const getLatestDraft = () =>
+  Object.entries(DRAFT_STORAGE_KEYS)
+    .map(([flow, storageKey]) => {
+      const draft = readDraft(storageKey);
+      return draft ? { flow, storageKey, draft } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.draft.savedAt - a.draft.savedAt)[0] || null;
+
+const normalizePerson = (person) => ({
+  nome: normalizeInlineText(person.nome),
+  rg: normalizeRg(person.rg),
+  cpf: normalizeCpf(person.cpf),
+  nasc: normalizeDate(person.nasc),
+  telefone: normalizePhone(person.telefone),
+  mae: normalizeInlineText(person.mae),
+  endereco: normalizeMultilineText(person.endereco),
+});
+
+const validatePerson = (person, label) => {
+  const errors = [];
+  if (!validateRg(person.rg)) errors.push(`${label}: RG inválido.`);
+  if (!validateCpf(person.cpf)) errors.push(`${label}: CPF inválido.`);
+  if (!validateDate(person.nasc))
+    errors.push(`${label}: data de nascimento inválida (use DD/MM/AAAA).`);
+  if (!validatePhone(person.telefone))
+    errors.push(`${label}: telefone inválido.`);
+  return errors;
+};
+
+const normalizePrimeiraDados = (dados) => ({
+  ...dados,
+  vitima: normalizePerson(dados.vitima),
+  autor: normalizePerson(dados.autor),
+  testemunhas: dados.testemunhas.map(normalizePerson),
+  relacao: normalizeInlineText(dados.relacao),
+  temFilhos: normalizeInlineText(dados.temFilhos),
+  tempoRelacao: normalizeInlineText(dados.tempoRelacao),
+  tempoSeparacao: normalizeInlineText(dados.tempoSeparacao),
+  residencia: normalizeInlineText(dados.residencia),
+  usoDrogas: normalizeInlineText(dados.usoDrogas),
+  arma: normalizeInlineText(dados.arma),
+  motivo: normalizeInlineText(dados.motivo),
+  versaoVitima: normalizeMultilineText(dados.versaoVitima),
+  versaoAutor: normalizeMultilineText(dados.versaoAutor),
+  desordem: normalizeInlineText(dados.desordem),
+  socorro: normalizeInlineText(dados.socorro),
+  materiais: normalizeInlineText(dados.materiais),
+  mpu: normalizeInlineText(dados.mpu),
+  origemAcionamento: normalizeInlineText(dados.origemAcionamento),
+  dataHoraFato: normalizeDateTime(dados.dataHoraFato),
+  filhosDetalhe: normalizeInlineText(dados.filhosDetalhe),
+  lesoes: normalizeInlineText(dados.lesoes),
+  dizeresAutor: normalizeMultilineText(dados.dizeresAutor),
+  danos: normalizeInlineText(dados.danos),
+  provas: normalizeInlineText(dados.provas),
+  destinoVitima: normalizeInlineText(dados.destinoVitima),
+  destinoAutor: normalizeInlineText(dados.destinoAutor),
+  acompanhamento: normalizeInlineText(dados.acompanhamento),
+});
+
+const normalizeSegundaDados = (dados) => ({
+  ...dados,
+  redsOrigem: normalizeReds(dados.redsOrigem),
+  dataHoraVisita: normalizeDateTime(dados.dataHoraVisita),
+  localVisita: normalizeInlineText(dados.localVisita),
+  vitimaLocalizada: normalizeInlineText(dados.vitimaLocalizada),
+  formaContato: normalizeInlineText(dados.formaContato),
+  contextoOcorrenciaAnterior: normalizeMultilineText(
+    dados.contextoOcorrenciaAnterior,
+  ),
+  estadoVitima: normalizeInlineText(dados.estadoVitima),
+  novoFato: normalizeInlineText(dados.novoFato),
+  localSeguro: normalizeInlineText(dados.localSeguro),
+  apoioRede: normalizeInlineText(dados.apoioRede),
+  encaminhamentoFinal: normalizeMultilineText(dados.encaminhamentoFinal),
+  resumo: normalizeMultilineText(dados.resumo),
+  vitima: normalizePerson(dados.vitima),
+});
+
 const buildFonarText = (fonar, observacoes = "") => {
   const simCount = fonar.filter((a) => a === "sim").length;
   const nsNaCount = fonar.filter((a) => a === "nsna").length;
@@ -500,11 +916,20 @@ Respostas Detalhadas:
 ${respostasTexto.trim()}
 
 Observações Complementares:
-${observacoes || "[NÃO INFORMADO]"}`;
+${normalizeMultilineText(observacoes) || "[NÃO INFORMADO]"}`;
 };
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState("capa");
+
+  useEffect(() => {
+    const latestDraft = getLatestDraft();
+    if (!latestDraft) return;
+    if (latestDraft.draft?.telaAtual) {
+      setTelaAtual(latestDraft.draft.telaAtual);
+      showToast("Rascunho local restaurado.");
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-100 flex justify-center font-sans text-zinc-900 selection:bg-yellow-200">
@@ -1031,8 +1456,11 @@ function FaqScreen() {
               className={`bg-white border ${isOpen ? "border-yellow-400 shadow-md ring-1 ring-yellow-400/20" : "border-zinc-200 shadow-sm"} rounded-2xl overflow-hidden transition-all duration-200`}
             >
               <button
+                type="button"
                 onClick={() => setOpenIndex(isOpen ? null : idx)}
-                className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+                aria-expanded={isOpen}
+                aria-controls={`crime-detalhe-${idx}`}
+                className={`w-full text-left p-4 flex justify-between items-center hover:bg-zinc-50/50 transition-colors ${buttonFocusClassName}`}
               >
                 <div className="pr-4">
                   <h3
@@ -1099,12 +1527,13 @@ function NaturezasScreen() {
       <div className="mb-6 grid grid-cols-2 gap-3">
         {["1ª Resposta", "2ª Resposta"].map((item) => (
           <button
+            type="button"
             key={item}
             onClick={() => {
               setFiltro(item);
               setOpenIndex(0);
             }}
-            className={`rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${
+            className={`rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${buttonFocusClassName} ${
               filtro === item
                 ? "border-yellow-400 bg-yellow-50 text-zinc-900"
                 : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
@@ -1124,11 +1553,14 @@ function NaturezasScreen() {
               className={`bg-white border ${isOpen ? "border-yellow-400 shadow-md ring-1 ring-yellow-400/20" : "border-zinc-200 shadow-sm"} rounded-2xl overflow-hidden transition-all duration-200`}
             >
               <button
+                type="button"
                 onClick={() => setOpenIndex(isOpen ? null : idx)}
-                className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+                aria-expanded={isOpen}
+                aria-controls={`natureza-detalhe-${idx}`}
+                className={`w-full text-left p-4 flex justify-between items-center hover:bg-zinc-50/50 transition-colors ${buttonFocusClassName}`}
               >
                 <div className="pr-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400 mb-1">
                     {item.categoria}
                   </p>
                   <h3
@@ -1148,13 +1580,16 @@ function NaturezasScreen() {
               </button>
 
               {isOpen && (
-                <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+                <div
+                  id={`natureza-detalhe-${idx}`}
+                  className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200"
+                >
                   <div className="border-t border-zinc-100 pt-3 space-y-3">
                     <p className="text-zinc-700 text-[13px] leading-relaxed font-medium">
                       {item.explicacao}
                     </p>
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5">
                         Quando usar
                       </p>
                       <p className="text-zinc-600 text-[13px] leading-relaxed font-medium">
@@ -1365,8 +1800,11 @@ function GuiaCrimes() {
               className={`bg-white border ${isOpen ? "border-yellow-400 shadow-md ring-1 ring-yellow-400/20" : "border-zinc-200 shadow-sm"} rounded-2xl overflow-hidden transition-all duration-200`}
             >
               <button
+                type="button"
                 onClick={() => setOpenIndex(isOpen ? null : idx)}
-                className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+                aria-expanded={isOpen}
+                aria-controls={`modelo-detalhe-${idx}`}
+                className={`w-full text-left p-4 flex justify-between items-center hover:bg-zinc-50/50 transition-colors ${buttonFocusClassName}`}
               >
                 <div>
                   <h3
@@ -1374,7 +1812,7 @@ function GuiaCrimes() {
                   >
                     {crime.titulo}
                   </h3>
-                  <p className="text-[10px] uppercase font-bold text-zinc-400 mt-1 tracking-widest">
+                  <p className="text-[11px] uppercase font-bold text-zinc-400 mt-1 tracking-widest">
                     {crime.categoria}
                   </p>
                 </div>
@@ -1389,7 +1827,10 @@ function GuiaCrimes() {
               </button>
 
               {isOpen && (
-                <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+                <div
+                  id={`crime-detalhe-${idx}`}
+                  className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200"
+                >
                   <div className="border-t border-zinc-100 pt-4 space-y-4 text-sm">
                     <div className="inline-flex bg-zinc-100 border border-zinc-200 text-zinc-800 px-3 py-1.5 rounded-lg font-bold text-xs tracking-wide">
                       ⚖️ Pena: {crime.pena}
@@ -1401,7 +1842,7 @@ function GuiaCrimes() {
                     </p>
 
                     <div>
-                      <span className="font-bold text-zinc-400 block mb-2 text-[10px] uppercase tracking-widest">
+                      <span className="font-bold text-zinc-400 block mb-2 text-[11px] uppercase tracking-widest">
                         Verbos-chave
                       </span>
                       <div className="flex flex-wrap gap-1.5">
@@ -1431,7 +1872,7 @@ function GuiaCrimes() {
                     </p>
 
                     <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-200/60 mt-2">
-                      <p className="text-yellow-700 font-black text-[10px] uppercase tracking-widest mb-1.5">
+                      <p className="text-yellow-700 font-black text-[11px] uppercase tracking-widest mb-1.5">
                         Pergunta-chave
                       </p>
                       <p className="text-yellow-900 text-sm font-medium leading-snug">
@@ -1548,7 +1989,7 @@ function ModelosReds() {
             >
               <button
                 onClick={() => setOpenIndex(isOpen ? null : idx)}
-                className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+                className={`w-full text-left p-4 flex justify-between items-center hover:bg-zinc-50/50 transition-colors ${buttonFocusClassName}`}
               >
                 <div>
                   <h3
@@ -1556,7 +1997,7 @@ function ModelosReds() {
                   >
                     {modelo.titulo}
                   </h3>
-                  <p className="text-[10px] uppercase font-bold text-zinc-400 mt-1 tracking-widest">
+                  <p className="text-[11px] uppercase font-bold text-zinc-400 mt-1 tracking-widest">
                     {modelo.categoria}
                   </p>
                 </div>
@@ -1571,7 +2012,10 @@ function ModelosReds() {
               </button>
 
               {isOpen && (
-                <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+                <div
+                  id={`modelo-detalhe-${idx}`}
+                  className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200"
+                >
                   <div className="border-t border-zinc-100 pt-4 space-y-4">
                     <p className="text-zinc-500 text-xs leading-relaxed font-medium mb-3">
                       {modelo.descricao}
@@ -1579,7 +2023,7 @@ function ModelosReds() {
 
                     <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 shadow-inner relative group">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase ml-1">
+                        <span className="text-[11px] font-black text-zinc-400 tracking-widest uppercase ml-1">
                           Histórico Padrão
                         </span>
                         <button
@@ -1616,19 +2060,35 @@ function FormPessoaAccordion({
   onChange,
   onRemove,
 }) {
+  const baseId = useId();
+  const sectionId = `${baseId}-content`;
+  const titleId = `${baseId}-title`;
+  const handleFieldChange = (field, rawValue) => {
+    if (field === "cpf") return onChange(field, normalizeCpf(rawValue));
+    if (field === "telefone") return onChange(field, normalizePhone(rawValue));
+    if (field === "nasc") return onChange(field, normalizeDate(rawValue));
+    if (field === "rg") return onChange(field, normalizeRg(rawValue));
+    if (field === "endereco") return onChange(field, rawValue);
+    return onChange(field, rawValue);
+  };
+
   return (
     <div
       className={`bg-white border ${isOpen ? "border-yellow-400 shadow-md ring-1 ring-yellow-400/20" : "border-zinc-200 shadow-sm"} rounded-2xl overflow-hidden transition-all duration-200`}
     >
       <button
+        type="button"
         onClick={onToggle}
-        className="w-full text-left p-4 flex justify-between items-center focus:outline-none hover:bg-zinc-50/50 transition-colors"
+        aria-expanded={isOpen}
+        aria-controls={sectionId}
+        className={`w-full text-left p-4 flex justify-between items-center hover:bg-zinc-50/50 transition-colors ${buttonFocusClassName}`}
       >
         <div className="flex items-center">
           <Users
             className={`w-5 h-5 mr-3 ${isOpen ? "text-yellow-600" : "text-zinc-400"}`}
           />
           <h3
+            id={titleId}
             className={`font-black text-[14px] uppercase tracking-wide ${isOpen ? "text-zinc-900" : "text-zinc-700"}`}
           >
             {title}{" "}
@@ -1641,15 +2101,17 @@ function FormPessoaAccordion({
         </div>
         <div className="flex items-center space-x-2">
           {onRemove && (
-            <span
+            <button
+              type="button"
+              aria-label={`Remover ${title}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();
               }}
-              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className={`rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 ${buttonFocusClassName}`}
             >
               <Trash2 className="w-4 h-4" />
-            </span>
+            </button>
           )}
           <div
             className={`p-1.5 rounded-xl transition-colors ${isOpen ? "bg-yellow-100 text-yellow-700" : "bg-zinc-100 text-zinc-500"}`}
@@ -1663,92 +2125,124 @@ function FormPessoaAccordion({
       </button>
 
       {isOpen && (
-        <div className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200">
+        <div
+          id={sectionId}
+          aria-labelledby={titleId}
+          className="px-4 pb-5 animate-in slide-in-from-top-2 duration-200"
+        >
           <div className="border-t border-zinc-100 pt-4 grid grid-cols-1 gap-3">
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+              <label
+                htmlFor={`${baseId}-nome`}
+                className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+              >
                 Nome Completo
               </label>
               <input
+                id={`${baseId}-nome`}
                 type="text"
-                className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                className={compactFieldClassName}
                 value={data.nome}
-                onChange={(e) => onChange("nome", e.target.value)}
+                onChange={(e) => handleFieldChange("nome", e.target.value)}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label
+                  htmlFor={`${baseId}-rg`}
+                  className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+                >
                   RG
                 </label>
                 <input
+                  id={`${baseId}-rg`}
                   type="text"
-                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={data.rg}
-                  onChange={(e) => onChange("rg", e.target.value)}
+                  onChange={(e) => handleFieldChange("rg", e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label
+                  htmlFor={`${baseId}-cpf`}
+                  className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+                >
                   CPF
                 </label>
                 <input
+                  id={`${baseId}-cpf`}
                   type="text"
-                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={data.cpf}
-                  onChange={(e) => onChange("cpf", e.target.value)}
+                  onChange={(e) => handleFieldChange("cpf", e.target.value)}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label
+                  htmlFor={`${baseId}-nasc`}
+                  className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+                >
                   Data Nascimento
                 </label>
                 <input
+                  id={`${baseId}-nasc`}
                   type="text"
                   placeholder="DD/MM/AAAA"
-                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={data.nasc}
-                  onChange={(e) => onChange("nasc", e.target.value)}
+                  onChange={(e) => handleFieldChange("nasc", e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label
+                  htmlFor={`${baseId}-telefone`}
+                  className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+                >
                   Telefone
                 </label>
                 <input
+                  id={`${baseId}-telefone`}
                   type="tel"
-                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm font-mono"
+                  className={`${compactFieldClassName} font-mono`}
                   value={data.telefone}
-                  onChange={(e) => onChange("telefone", e.target.value)}
+                  onChange={(e) => handleFieldChange("telefone", e.target.value)}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+              <label
+                htmlFor={`${baseId}-mae`}
+                className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+              >
                 Nome da Mãe
               </label>
               <input
+                id={`${baseId}-mae`}
                 type="text"
-                className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                className={compactFieldClassName}
                 value={data.mae}
-                onChange={(e) => onChange("mae", e.target.value)}
+                onChange={(e) => handleFieldChange("mae", e.target.value)}
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+              <label
+                htmlFor={`${baseId}-endereco`}
+                className="mb-1 ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500"
+              >
                 Endereço Completo
               </label>
               <textarea
+                id={`${baseId}-endereco`}
                 rows="2"
-                className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm text-zinc-900 font-medium"
+                className={compactFieldClassName}
                 value={data.endereco}
-                onChange={(e) => onChange("endereco", e.target.value)}
+                onChange={(e) => handleFieldChange("endereco", e.target.value)}
               ></textarea>
             </div>
           </div>
@@ -1785,14 +2279,20 @@ function ProgressBar({ step, total, labels }) {
 // COMPONENTE: CHECKBOX CARD
 // ==========================================
 function CheckboxCard({ label, subtitle, checked, onChange, alert }) {
+  const inputId = useId();
+  const alertId = alert ? `${inputId}-alert` : undefined;
+
   return (
     <label
+      htmlFor={inputId}
       className={`flex items-start p-4 rounded-xl border cursor-pointer transition-all duration-200 shadow-sm ${checked ? "bg-yellow-50/30 border-yellow-400 ring-1 ring-yellow-400/20" : "bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/50"}`}
     >
       <div className="flex items-center h-5 mt-0.5">
         <input
+          id={inputId}
           type="checkbox"
-          className="w-5 h-5 rounded border-zinc-300 text-yellow-500 focus:ring-yellow-500 focus:ring-offset-0 bg-white transition-colors cursor-pointer"
+          aria-describedby={alertId}
+          className={`h-5 w-5 cursor-pointer rounded border-zinc-300 bg-white text-yellow-500 transition-colors focus-visible:ring-yellow-500 focus-visible:ring-offset-0 ${buttonFocusClassName}`}
           checked={checked}
           onChange={onChange}
         />
@@ -1809,7 +2309,10 @@ function CheckboxCard({ label, subtitle, checked, onChange, alert }) {
           </span>
         )}
         {alert && (
-          <span className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-1.5">
+          <span
+            id={alertId}
+            className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-1.5"
+          >
             {alert}
           </span>
         )}
@@ -1819,15 +2322,34 @@ function CheckboxCard({ label, subtitle, checked, onChange, alert }) {
 }
 
 function FonarAvulso({ setTelaAtual }) {
-  const [step, setStep] = useState(1);
-  const [fonar, setFonar] = useState(Array(19).fill(""));
-  const [observacoes, setObservacoes] = useState("");
+  const fonarDraft = readDraft(DRAFT_STORAGE_KEYS.fonar);
+  const [step, setStep] = useState(fonarDraft?.step || 1);
+  const [fonar, setFonar] = useState(fonarDraft?.fonar || Array(19).fill(""));
+  const [observacoes, setObservacoes] = useState(fonarDraft?.observacoes || "");
+  const observacoesId = useId();
 
   const fonarIncompleto = fonar.includes("");
   const textoFonar = !fonarIncompleto ? buildFonarText(fonar, observacoes) : "";
   const simCount = fonar.filter((a) => a === "sim").length;
   const nsNaCount = fonar.filter((a) => a === "nsna").length;
   const risco = !fonarIncompleto ? calcularRisco(simCount, nsNaCount) : null;
+
+  const handleDiscardDraft = () => {
+    clearDraft(DRAFT_STORAGE_KEYS.fonar);
+    setStep(1);
+    setFonar(Array(19).fill(""));
+    setObservacoes("");
+    showToast("Rascunho local descartado.");
+  };
+
+  useEffect(() => {
+    saveDraft(DRAFT_STORAGE_KEYS.fonar, {
+      telaAtual: "fonar",
+      step,
+      fonar,
+      observacoes,
+    });
+  }, [step, fonar, observacoes]);
 
   return (
     <div className="p-5 pb-24 print:p-0 print:pb-0">
@@ -1836,6 +2358,16 @@ function FonarAvulso({ setTelaAtual }) {
         total={2}
         labels={["Entrevista", "Relatório"]}
       />
+
+      <div className="mt-5 flex justify-end print:hidden">
+        <button
+          type="button"
+          onClick={handleDiscardDraft}
+          className={`rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-zinc-700 transition hover:bg-zinc-100 ${buttonFocusClassName}`}
+        >
+          Limpar dados
+        </button>
+      </div>
 
       {step === 1 && (
         <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
@@ -1861,49 +2393,17 @@ function FonarAvulso({ setTelaAtual }) {
 
           <div className="space-y-4 pt-2">
             {perguntasFonar.map((pergunta, idx) => (
-              <div
+              <FonarQuestionCard
                 key={idx}
-                className={`p-4 rounded-2xl border transition-all duration-200 shadow-sm ${fonar[idx] === "sim" ? "bg-red-50/50 border-red-200" : fonar[idx] === "nao" ? "bg-emerald-50/50 border-emerald-200" : fonar[idx] === "nsna" ? "bg-zinc-100 border-zinc-200" : "bg-white border-zinc-200"}`}
-              >
-                <p className="text-[13px] font-bold text-zinc-800 mb-3.5 leading-snug">
-                  <span className="text-yellow-600 mr-1.5 font-black">
-                    {idx + 1}.
-                  </span>{" "}
-                  {pergunta}
-                </p>
-                <div className="grid grid-cols-3 gap-2.5">
-                  <button
-                    onClick={() => {
-                      const nf = [...fonar];
-                      nf[idx] = "sim";
-                      setFonar(nf);
-                    }}
-                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "sim" ? "bg-red-500 text-white shadow-md ring-2 ring-red-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                  >
-                    Sim
-                  </button>
-                  <button
-                    onClick={() => {
-                      const nf = [...fonar];
-                      nf[idx] = "nao";
-                      setFonar(nf);
-                    }}
-                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "nao" ? "bg-emerald-500 text-white shadow-md ring-2 ring-emerald-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                  >
-                    Não
-                  </button>
-                  <button
-                    onClick={() => {
-                      const nf = [...fonar];
-                      nf[idx] = "nsna";
-                      setFonar(nf);
-                    }}
-                    className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar[idx] === "nsna" ? "bg-zinc-700 text-white shadow-md ring-2 ring-zinc-700/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                  >
-                    NS / NA
-                  </button>
-                </div>
-              </div>
+                pergunta={pergunta}
+                idx={idx}
+                value={fonar[idx]}
+                onChange={(nextValue) => {
+                  const nf = [...fonar];
+                  nf[idx] = nextValue;
+                  setFonar(nf);
+                }}
+              />
             ))}
           </div>
 
@@ -1921,29 +2421,42 @@ function FonarAvulso({ setTelaAtual }) {
           )}
 
           <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm">
-            <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+            <label
+              htmlFor={observacoesId}
+              className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1"
+            >
               Observações Complementares
             </label>
             <textarea
+              id={observacoesId}
               rows="4"
-              className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+              className={fieldClassName}
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Ex: entrevista feita no local; vítima orientada; avaliação usada para subsidiar decisão operacional."
             ></textarea>
           </div>
 
+          {fonarIncompleto && (
+            <ValidationMessage message="Responda às 19 perguntas do FONAR antes de gerar o relatório." />
+          )}
+
           <div className="flex space-x-3 pt-4">
             <button
-              onClick={() => setTelaAtual("home")}
+              onClick={() => {
+                clearDraft(DRAFT_STORAGE_KEYS.fonar);
+                setTelaAtual("home");
+              }}
               className="bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-bold p-4 rounded-2xl transition-colors shadow-sm"
             >
               <Home className="w-6 h-6" strokeWidth={2} />
             </button>
             <button
+              type="button"
               onClick={() => setStep(2)}
               disabled={fonarIncompleto}
-              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${
+              aria-disabled={fonarIncompleto}
+              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${buttonFocusClassName} ${
                 fonarIncompleto
                   ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
                   : "bg-zinc-950 hover:bg-zinc-800 text-white active:scale-[0.98]"
@@ -2009,7 +2522,10 @@ function FonarAvulso({ setTelaAtual }) {
               <ChevronLeft className="w-6 h-6" strokeWidth={2} />
             </button>
             <button
-              onClick={() => setTelaAtual("home")}
+              onClick={() => {
+                clearDraft(DRAFT_STORAGE_KEYS.fonar);
+                setTelaAtual("home");
+              }}
               className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide"
             >
               <CheckCircle2
@@ -2029,7 +2545,8 @@ function FonarAvulso({ setTelaAtual }) {
 // FLUXO DE PRIMEIRA RESPOSTA (5 Passos)
 // ==========================================
 function PrimeiraResposta({ setTelaAtual }) {
-  const [step, setStep] = useState(1);
+  const primeiraDraft = readDraft(DRAFT_STORAGE_KEYS.primeira);
+  const [step, setStep] = useState(primeiraDraft?.step || 1);
   const hoje = new Date();
   const prazoRetorno = new Date(hoje);
   prazoRetorno.setDate(prazoRetorno.getDate() + 3);
@@ -2044,67 +2561,110 @@ function PrimeiraResposta({ setTelaAtual }) {
   const prazoRetornoFormatado = formatarData(prazoRetorno);
 
   // Estado estruturado para pessoas
-  const [dados, setDados] = useState({
-    vitima: {
-      nome: "",
-      rg: "",
-      cpf: "",
-      nasc: "",
-      telefone: "",
-      mae: "",
-      endereco: "",
+  const [dados, setDados] = useState(
+    primeiraDraft?.dados || {
+      vitima: {
+        nome: "",
+        rg: "",
+        cpf: "",
+        nasc: "",
+        telefone: "",
+        mae: "",
+        endereco: "",
+      },
+      autor: {
+        nome: "",
+        rg: "",
+        cpf: "",
+        nasc: "",
+        telefone: "",
+        mae: "",
+        endereco: "",
+      },
+      testemunhas: [],
+      relacao: "",
+      temFilhos: "",
+      tempoRelacao: "",
+      tempoSeparacao: "",
+      residencia: "",
+      ciumento: false,
+      naoAceitaTermino: false,
+      usoDrogas: "",
+      arma: "",
+      motivo: "",
+      versaoVitima: "",
+      versaoAutor: "",
+      desordem: "",
+      socorro: "",
+      materiais: "",
+      mpu: "",
+      origemAcionamento: "",
+      dataHoraFato: "",
+      filhosDetalhe: "",
+      lesoes: "",
+      dizeresAutor: "",
+      danos: "",
+      provas: "",
+      destinoVitima: "",
+      destinoAutor: "",
+      acompanhamento: "",
     },
-    autor: {
-      nome: "",
-      rg: "",
-      cpf: "",
-      nasc: "",
-      telefone: "",
-      mae: "",
-      endereco: "",
-    },
-    testemunhas: [], // Array de objetos { nome, rg... }
-
-    // Histórico / Dinâmica
-    relacao: "",
-    temFilhos: "",
-    tempoRelacao: "",
-    tempoSeparacao: "",
-    residencia: "",
-    ciumento: false,
-    naoAceitaTermino: false,
-    usoDrogas: "",
-    arma: "",
-    motivo: "",
-    versaoVitima: "",
-    versaoAutor: "",
-    desordem: "",
-    socorro: "",
-    materiais: "",
-    mpu: "",
-    origemAcionamento: "",
-    dataHoraFato: "",
-    filhosDetalhe: "",
-    lesoes: "",
-    dizeresAutor: "",
-    danos: "",
-    provas: "",
-    destinoVitima: "",
-    destinoAutor: "",
-    acompanhamento: "",
-  });
+  );
   // Controlo de Abas Abertas
-  const [openPessoaIndex, setOpenPessoaIndex] = useState("vitima");
+  const [openPessoaIndex, setOpenPessoaIndex] = useState(
+    primeiraDraft?.openPessoaIndex || "vitima",
+  );
 
-  const [fonar, setFonar] = useState(Array(19).fill(""));
+  const [fonar, setFonar] = useState(primeiraDraft?.fonar || Array(19).fill(""));
+  const [validationErrors, setValidationErrors] = useState([]);
+  const dadosNormalizados = normalizePrimeiraDados(dados);
+
+  const step2ValidationErrors = [
+    ...validatePerson(dados.vitima, "Vítima"),
+    ...validatePerson(dados.autor, "Autor"),
+    ...dados.testemunhas.flatMap((testemunha, idx) =>
+      validatePerson(testemunha, `Testemunha ${idx + 1}`),
+    ),
+  ];
+
+  const step3ValidationErrors = [];
+  if (!validateDateTime(dados.dataHoraFato)) {
+    step3ValidationErrors.push(
+      "Data/hora do fato inválida. Use o formato DD/MM/AAAA HH:MM.",
+    );
+  }
+
+  const validateCurrentStep = () => {
+    if (step === 2) return step2ValidationErrors;
+    if (step === 3) return step3ValidationErrors;
+    return [];
+  };
 
   const handleNext = () => {
+    const errors = validateCurrentStep();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      window.scrollTo(0, 0);
+      return;
+    }
+    setValidationErrors([]);
     window.scrollTo(0, 0);
     setStep(step + 1);
   };
   const handlePrev = () => {
+    setValidationErrors([]);
     window.scrollTo(0, 0);
     setStep(step - 1);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft(DRAFT_STORAGE_KEYS.primeira);
+    setStep(1);
+    setDados(createInitialPrimeiraDados());
+    setOpenPessoaIndex("vitima");
+    setFonar(Array(19).fill(""));
+    setValidationErrors([]);
+    showToast("Rascunho local descartado.");
   };
 
   // Funções de Update de Pessoas
@@ -2138,6 +2698,16 @@ function PrimeiraResposta({ setTelaAtual }) {
     setDados({ ...dados, testemunhas: newT });
   };
 
+  useEffect(() => {
+    saveDraft(DRAFT_STORAGE_KEYS.primeira, {
+      telaAtual: "primeira",
+      step,
+      dados,
+      fonar,
+      openPessoaIndex,
+    });
+  }, [step, dados, fonar, openPessoaIndex]);
+
   return (
     <div className="p-5 pb-24 print:p-0 print:pb-0">
       <ProgressBar
@@ -2145,6 +2715,16 @@ function PrimeiraResposta({ setTelaAtual }) {
         total={5}
         labels={["Cena", "Qualificação", "Histórico", "FONAR", "Relatório"]}
       />
+
+      <div className="mt-5 flex justify-end print:hidden">
+        <button
+          type="button"
+          onClick={handleDiscardDraft}
+          className={`rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-zinc-700 transition hover:bg-zinc-100 ${buttonFocusClassName}`}
+        >
+          Limpar dados
+        </button>
+      </div>
 
       {/* PASSO 1: CONTROLE DA CENA */}
       {step === 1 && (
@@ -2352,6 +2932,13 @@ function PrimeiraResposta({ setTelaAtual }) {
             </button>
           </div>
 
+          {step === 2 && validationErrors.length > 0 && (
+            <ValidationMessage
+              tone="error"
+              message={validationErrors.join(" ")}
+            />
+          )}
+
           <div className="flex space-x-3 pt-4">
             <button
               onClick={handlePrev}
@@ -2393,11 +2980,11 @@ function PrimeiraResposta({ setTelaAtual }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Relação
                   </label>
                   <select
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.relacao}
                     onChange={(e) =>
                       setDados({ ...dados, relacao: e.target.value })
@@ -2412,11 +2999,11 @@ function PrimeiraResposta({ setTelaAtual }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Filhos Comuns?
                   </label>
                   <select
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.temFilhos}
                     onChange={(e) =>
                       setDados({ ...dados, temFilhos: e.target.value })
@@ -2431,13 +3018,13 @@ function PrimeiraResposta({ setTelaAtual }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Tempo Juntos
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: 5 anos"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.tempoRelacao}
                     onChange={(e) =>
                       setDados({ ...dados, tempoRelacao: e.target.value })
@@ -2445,13 +3032,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Tempo Separados
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: 2 meses"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.tempoSeparacao}
                     onChange={(e) =>
                       setDados({ ...dados, tempoSeparacao: e.target.value })
@@ -2460,13 +3047,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Local do Fato / Moradia
                 </label>
                 <input
                   type="text"
                   placeholder="Ex: Casa alugada no nome da vítima"
-                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={dados.residencia}
                   onChange={(e) =>
                     setDados({ ...dados, residencia: e.target.value })
@@ -2475,13 +3062,13 @@ function PrimeiraResposta({ setTelaAtual }) {
               </div>
               <div className="grid grid-cols-2 gap-3 border-t border-zinc-100 pt-4">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Origem do Acionamento
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: COPOM / 190 / terceiro"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.origemAcionamento}
                     onChange={(e) =>
                       setDados({ ...dados, origemAcionamento: e.target.value })
@@ -2489,28 +3076,31 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Data / Hora do Fato
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: 05/04/2026 18:40"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.dataHoraFato}
                     onChange={(e) =>
-                      setDados({ ...dados, dataHoraFato: e.target.value })
+                      setDados({
+                        ...dados,
+                        dataHoraFato: normalizeDateTime(e.target.value),
+                      })
                     }
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Filhos / Crianças Relacionadas
                 </label>
                 <input
                   type="text"
                   placeholder="Ex: 2 filhos, 6 e 9 anos; presentes no local"
-                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={dados.filhosDetalhe}
                   onChange={(e) =>
                     setDados({ ...dados, filhosDetalhe: e.target.value })
@@ -2527,7 +3117,7 @@ function PrimeiraResposta({ setTelaAtual }) {
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-5 h-5 text-yellow-500 rounded border-zinc-300 focus:ring-yellow-500"
+                    className={`w-5 h-5 rounded border-zinc-300 text-yellow-500 ${buttonFocusClassName}`}
                     checked={dados.ciumento}
                     onChange={(e) =>
                       setDados({ ...dados, ciumento: e.target.checked })
@@ -2540,7 +3130,7 @@ function PrimeiraResposta({ setTelaAtual }) {
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-5 h-5 text-yellow-500 rounded border-zinc-300 focus:ring-yellow-500"
+                    className={`w-5 h-5 rounded border-zinc-300 text-yellow-500 ${buttonFocusClassName}`}
                     checked={dados.naoAceitaTermino}
                     onChange={(e) =>
                       setDados({ ...dados, naoAceitaTermino: e.target.checked })
@@ -2553,11 +3143,11 @@ function PrimeiraResposta({ setTelaAtual }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Álcool / Drogas
                   </label>
                   <select
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.usoDrogas}
                     onChange={(e) =>
                       setDados({ ...dados, usoDrogas: e.target.value })
@@ -2570,11 +3160,11 @@ function PrimeiraResposta({ setTelaAtual }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Arma de Fogo
                   </label>
                   <select
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.arma}
                     onChange={(e) =>
                       setDados({ ...dados, arma: e.target.value })
@@ -2593,13 +3183,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                 Dinâmica e Desfecho
               </h3>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Motivo do Atrito
                 </label>
                 <input
                   type="text"
                   placeholder="Ex: Ciúmes, dinheiro..."
-                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                  className={compactFieldClassName}
                   value={dados.motivo}
                   onChange={(e) =>
                     setDados({ ...dados, motivo: e.target.value })
@@ -2607,13 +3197,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Versão da Vítima
                 </label>
                 <textarea
                   rows="2"
                   placeholder="O que o autor fez ou disse..."
-                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm text-zinc-900 font-medium"
+                  className={compactFieldClassName}
                   value={dados.versaoVitima}
                   onChange={(e) =>
                     setDados({ ...dados, versaoVitima: e.target.value })
@@ -2621,13 +3211,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                 ></textarea>
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Versão do Autor
                 </label>
                 <textarea
                   rows="2"
                   placeholder="A versão do autor ou se ele não foi localizado..."
-                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm text-zinc-900 font-medium"
+                  className={compactFieldClassName}
                   value={dados.versaoAutor}
                   onChange={(e) =>
                     setDados({ ...dados, versaoAutor: e.target.value })
@@ -2636,13 +3226,13 @@ function PrimeiraResposta({ setTelaAtual }) {
               </div>
               <div className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-4">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Lesões Aparente(s)
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: hematoma no braço esquerdo, vermelhidão no pescoço"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.lesoes}
                     onChange={(e) =>
                       setDados({ ...dados, lesoes: e.target.value })
@@ -2650,13 +3240,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Dizeres / Ameaças do Autor
                   </label>
                   <textarea
                     rows="2"
                     placeholder="Ex: 'vou te matar', 'vou quebrar tudo'..."
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm text-zinc-900 font-medium"
+                    className={compactFieldClassName}
                     value={dados.dizeresAutor}
                     onChange={(e) =>
                       setDados({ ...dados, dizeresAutor: e.target.value })
@@ -2664,13 +3254,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   ></textarea>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Danos / Objetos Atingidos
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: celular da vítima danificado, porta quebrada"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.danos}
                     onChange={(e) =>
                       setDados({ ...dados, danos: e.target.value })
@@ -2678,13 +3268,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Provas / Elementos Disponíveis
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: fotos, prints, vídeos, testemunha presencial"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.provas}
                     onChange={(e) =>
                       setDados({ ...dados, provas: e.target.value })
@@ -2695,13 +3285,13 @@ function PrimeiraResposta({ setTelaAtual }) {
 
               <div className="grid grid-cols-2 gap-3 mt-2 border-t border-zinc-100 pt-4">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Sinais / Desordem
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: Porta arrombada"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.desordem}
                     onChange={(e) =>
                       setDados({ ...dados, desordem: e.target.value })
@@ -2709,13 +3299,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Socorro Médico
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: UPA, Ficha 123"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.socorro}
                     onChange={(e) =>
                       setDados({ ...dados, socorro: e.target.value })
@@ -2723,13 +3313,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Materiais Apreendidos
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: Uma faca"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.materiais}
                     onChange={(e) =>
                       setDados({ ...dados, materiais: e.target.value })
@@ -2737,13 +3327,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     MPU Ativa?
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: Processo nº 123"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.mpu}
                     onChange={(e) =>
                       setDados({ ...dados, mpu: e.target.value })
@@ -2753,13 +3343,13 @@ function PrimeiraResposta({ setTelaAtual }) {
               </div>
               <div className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-4">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Destino da Vítima / Proteção
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: permaneceu com familiar; orientada sobre DEAM e MPU"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.destinoVitima}
                     onChange={(e) =>
                       setDados({ ...dados, destinoVitima: e.target.value })
@@ -2767,13 +3357,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Situação do Autor
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: preso em flagrante / não localizado / liberado"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.destinoAutor}
                     onChange={(e) =>
                       setDados({ ...dados, destinoAutor: e.target.value })
@@ -2781,13 +3371,13 @@ function PrimeiraResposta({ setTelaAtual }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Encaminhamentos / Acompanhamento
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: DEAM, visita tranquilizadora, RpPM, retorno P3"
-                    className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-zinc-900 font-medium text-sm"
+                    className={compactFieldClassName}
                     value={dados.acompanhamento}
                     onChange={(e) =>
                       setDados({ ...dados, acompanhamento: e.target.value })
@@ -2797,6 +3387,13 @@ function PrimeiraResposta({ setTelaAtual }) {
               </div>
             </div>
           </div>
+
+          {step === 3 && validationErrors.length > 0 && (
+            <ValidationMessage
+              tone="error"
+              message={validationErrors.join(" ")}
+            />
+          )}
 
           <div className="flex space-x-3 pt-4">
             <button
@@ -2943,8 +3540,8 @@ function PrimeiraResposta({ setTelaAtual }) {
 
             // Formatando Testemunhas para Texto
             let testemunhasTxt = "Nenhuma testemunha registada.";
-            if (dados.testemunhas.length > 0) {
-              testemunhasTxt = dados.testemunhas
+            if (dadosNormalizados.testemunhas.length > 0) {
+              testemunhasTxt = dadosNormalizados.testemunhas
                 .map(
                   (t, i) =>
                     `Testemunha ${i + 1}:\nNome: ${t.nome || "[N/I]"}\nRG: ${t.rg || "[N/I]"} | CPF: ${t.cpf || "[N/I]"}\nNasc: ${t.nasc || "[N/I]"} | Telefone: ${t.telefone || "[N/I]"}\nMãe: ${t.mae || "[N/I]"}\nEndereço: ${t.endereco || "[N/I]"}`,
@@ -2957,18 +3554,18 @@ DADOS DE QUALIFICAÇÃO (COPIAR/COMPARTILHAR)
 =========================================
 
 [ VÍTIMA ]
-Nome: ${dados.vitima.nome || "[N/I]"}
-RG: ${dados.vitima.rg || "[N/I]"} | CPF: ${dados.vitima.cpf || "[N/I]"}
-Nascimento: ${dados.vitima.nasc || "[N/I]"} | Mãe: ${dados.vitima.mae || "[N/I]"}
-Telefone: ${dados.vitima.telefone || "[N/I]"}
-Endereço: ${dados.vitima.endereco || "[N/I]"}
+Nome: ${dadosNormalizados.vitima.nome || "[N/I]"}
+RG: ${dadosNormalizados.vitima.rg || "[N/I]"} | CPF: ${dadosNormalizados.vitima.cpf || "[N/I]"}
+Nascimento: ${dadosNormalizados.vitima.nasc || "[N/I]"} | Mãe: ${dadosNormalizados.vitima.mae || "[N/I]"}
+Telefone: ${dadosNormalizados.vitima.telefone || "[N/I]"}
+Endereço: ${dadosNormalizados.vitima.endereco || "[N/I]"}
 
 [ AUTOR ]
-Nome: ${dados.autor.nome || "[N/I]"}
-RG: ${dados.autor.rg || "[N/I]"} | CPF: ${dados.autor.cpf || "[N/I]"}
-Nascimento: ${dados.autor.nasc || "[N/I]"} | Mãe: ${dados.autor.mae || "[N/I]"}
-Telefone: ${dados.autor.telefone || "[N/I]"}
-Endereço: ${dados.autor.endereco || "[N/I]"}
+Nome: ${dadosNormalizados.autor.nome || "[N/I]"}
+RG: ${dadosNormalizados.autor.rg || "[N/I]"} | CPF: ${dadosNormalizados.autor.cpf || "[N/I]"}
+Nascimento: ${dadosNormalizados.autor.nasc || "[N/I]"} | Mãe: ${dadosNormalizados.autor.mae || "[N/I]"}
+Telefone: ${dadosNormalizados.autor.telefone || "[N/I]"}
+Endereço: ${dadosNormalizados.autor.endereco || "[N/I]"}
 
 [ TESTEMUNHAS ]
 ${testemunhasTxt}
@@ -2977,28 +3574,28 @@ ${testemunhasTxt}
 HISTÓRICO DO REDS (CONFORME ANEXO B)
 =========================================
 [ SUBSÍDIOS PARA CONFECÇÃO ]
-Origem do acionamento: ${dados.origemAcionamento || "[N/I]"}
-Data / hora do fato: ${dados.dataHoraFato || "[N/I]"}
-Relação: ${dados.relacao || "[N/I]"} | Filhos comuns: ${dados.temFilhos || "[N/I]"}
-Detalhe de filhos / crianças: ${dados.filhosDetalhe || "[N/I]"}
-Tempo de relacionamento: ${dados.tempoRelacao || "[N/I]"} | Tempo de separação: ${dados.tempoSeparacao || "[N/I]"}
-Moradia / local do fato: ${dados.residencia || "[N/I]"}
-Autor ciumento / possessivo: ${dados.ciumento ? "SIM" : "NÃO"} | Não aceita término: ${dados.naoAceitaTermino ? "SIM" : "NÃO"}
-Uso de álcool / drogas: ${dados.usoDrogas || "[N/I]"} | Arma de fogo: ${dados.arma || "[N/I]"}
-Motivo do atrito: ${dados.motivo || "[N/I]"}
-Versão da vítima: ${dados.versaoVitima || "[N/I]"}
-Versão do autor: ${dados.versaoAutor || "[N/I]"}
-Lesões aparentes: ${dados.lesoes || "[N/I]"}
-Dizeres / ameaças do autor: ${dados.dizeresAutor || "[N/I]"}
-Danos / objetos atingidos: ${dados.danos || "[N/I]"}
-Sinais / desordem no local: ${dados.desordem || "[N/I]"}
-Atendimento médico: ${dados.socorro || "[N/I]"}
-Materiais apreendidos: ${dados.materiais || "[N/I]"}
-MPU ativa: ${dados.mpu || "[N/I]"}
-Provas / elementos disponíveis: ${dados.provas || "[N/I]"}
-Destino da vítima / proteção: ${dados.destinoVitima || "[N/I]"}
-Situação do autor: ${dados.destinoAutor || "[N/I]"}
-Encaminhamentos / acompanhamento: ${dados.acompanhamento || "[N/I]"}
+Origem do acionamento: ${dadosNormalizados.origemAcionamento || "[N/I]"}
+Data / hora do fato: ${dadosNormalizados.dataHoraFato || "[N/I]"}
+Relação: ${dadosNormalizados.relacao || "[N/I]"} | Filhos comuns: ${dadosNormalizados.temFilhos || "[N/I]"}
+Detalhe de filhos / crianças: ${dadosNormalizados.filhosDetalhe || "[N/I]"}
+Tempo de relacionamento: ${dadosNormalizados.tempoRelacao || "[N/I]"} | Tempo de separação: ${dadosNormalizados.tempoSeparacao || "[N/I]"}
+Moradia / local do fato: ${dadosNormalizados.residencia || "[N/I]"}
+Autor ciumento / possessivo: ${dadosNormalizados.ciumento ? "SIM" : "NÃO"} | Não aceita término: ${dadosNormalizados.naoAceitaTermino ? "SIM" : "NÃO"}
+Uso de álcool / drogas: ${dadosNormalizados.usoDrogas || "[N/I]"} | Arma de fogo: ${dadosNormalizados.arma || "[N/I]"}
+Motivo do atrito: ${dadosNormalizados.motivo || "[N/I]"}
+Versão da vítima: ${dadosNormalizados.versaoVitima || "[N/I]"}
+Versão do autor: ${dadosNormalizados.versaoAutor || "[N/I]"}
+Lesões aparentes: ${dadosNormalizados.lesoes || "[N/I]"}
+Dizeres / ameaças do autor: ${dadosNormalizados.dizeresAutor || "[N/I]"}
+Danos / objetos atingidos: ${dadosNormalizados.danos || "[N/I]"}
+Sinais / desordem no local: ${dadosNormalizados.desordem || "[N/I]"}
+Atendimento médico: ${dadosNormalizados.socorro || "[N/I]"}
+Materiais apreendidos: ${dadosNormalizados.materiais || "[N/I]"}
+MPU ativa: ${dadosNormalizados.mpu || "[N/I]"}
+Provas / elementos disponíveis: ${dadosNormalizados.provas || "[N/I]"}
+Destino da vítima / proteção: ${dadosNormalizados.destinoVitima || "[N/I]"}
+Situação do autor: ${dadosNormalizados.destinoAutor || "[N/I]"}
+Encaminhamentos / acompanhamento: ${dadosNormalizados.acompanhamento || "[N/I]"}
 
 =========================================
 AVALIAÇÃO DE RISCO - FONAR
@@ -3121,7 +3718,10 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
               <ChevronLeft className="w-6 h-6" strokeWidth={2} />
             </button>
             <button
-              onClick={() => setTelaAtual("home")}
+              onClick={() => {
+                clearDraft(DRAFT_STORAGE_KEYS.primeira);
+                setTelaAtual("home");
+              }}
               className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide"
             >
               <CheckCircle2
@@ -3141,39 +3741,47 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
 // FLUXO DE SEGUNDA RESPOSTA (3 Passos)
 // ==========================================
 function SegundaResposta({ setTelaAtual }) {
-  const [step, setStep] = useState(1);
-  const [dados, setDados] = useState({
-    redsOrigem: "",
-    fonarPreenchidoPrimeiraResposta: "",
-    contatoAutor: false,
-    mpuVigente: false,
-    riscoElevado: false,
-    relacaoIntima: false,
-    resumo: "",
-    dataHoraVisita: "",
-    localVisita: "",
-    vitimaLocalizada: "",
-    formaContato: "",
-    contextoOcorrenciaAnterior: "",
-    estadoVitima: "",
-    novoFato: "",
-    descumprimentoMpu: false,
-    localSeguro: "",
-    apoioRede: "",
-    encaminhamentoFinal: "",
-    vitima: {
-      nome: "",
-      rg: "",
-      cpf: "",
-      nasc: "",
-      telefone: "",
-      mae: "",
-      endereco: "",
+  const segundaDraft = readDraft(DRAFT_STORAGE_KEYS.segunda);
+  const [step, setStep] = useState(segundaDraft?.step || 1);
+  const [dados, setDados] = useState(
+    segundaDraft?.dados || {
+      redsOrigem: "",
+      fonarPreenchidoPrimeiraResposta: "",
+      contatoAutor: false,
+      mpuVigente: false,
+      riscoElevado: false,
+      relacaoIntima: false,
+      resumo: "",
+      dataHoraVisita: "",
+      localVisita: "",
+      vitimaLocalizada: "",
+      formaContato: "",
+      contextoOcorrenciaAnterior: "",
+      estadoVitima: "",
+      novoFato: "",
+      descumprimentoMpu: false,
+      localSeguro: "",
+      apoioRede: "",
+      encaminhamentoFinal: "",
+      vitima: {
+        nome: "",
+        rg: "",
+        cpf: "",
+        nasc: "",
+        telefone: "",
+        mae: "",
+        endereco: "",
+      },
     },
-  });
+  );
 
-  const [openPessoaIndex, setOpenPessoaIndex] = useState("vitima");
-  const [fonar2, setFonar2] = useState(Array(19).fill(""));
+  const [openPessoaIndex, setOpenPessoaIndex] = useState(
+    segundaDraft?.openPessoaIndex || "vitima",
+  );
+  const [fonar2, setFonar2] = useState(
+    segundaDraft?.fonar2 || Array(19).fill(""),
+  );
+  const [validationErrors, setValidationErrors] = useState([]);
   const updateVitima = (field, val) =>
     setDados({ ...dados, vitima: { ...dados.vitima, [field]: val } });
   const vitimaNaoLocalizada = dados.vitimaLocalizada === "Não";
@@ -3186,8 +3794,55 @@ function SegundaResposta({ setTelaAtual }) {
     exigeFonarAgora && !fonar2Incompleto
       ? calcularRisco(simCount2, nsNaCount2)
       : null;
+  const dadosNormalizados = normalizeSegundaDados(dados);
+  const step1ValidationErrors = [
+    ...validatePerson(dados.vitima, "Vítima"),
+    ...(validateReds(dados.redsOrigem)
+      ? []
+      : ["Número do REDS de origem inválido. Use o formato AAAA-#########-###."]),
+  ];
+  const step2ValidationErrors = [
+    ...(!validateDateTime(dados.dataHoraVisita)
+      ? ["Data/hora da visita inválida. Use o formato DD/MM/AAAA HH:MM."]
+      : []),
+  ];
 
   let respostasFonar2 = "";
+  const vitimaLocalizadaId = useId();
+  const fonarPreenchidoId = useId();
+  const estadoVitimaId = useId();
+  const novoFatoId = useId();
+  const descumprimentoMpuId = useId();
+  const localSeguroId = useId();
+  const apoioRedeId = useId();
+  const resumoId = useId();
+  const encaminhamentoId = useId();
+
+  const validateCurrentStep = () => {
+    if (step === 1) return step1ValidationErrors;
+    if (step === 2) return step2ValidationErrors;
+    return [];
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft(DRAFT_STORAGE_KEYS.segunda);
+    setStep(1);
+    setDados(createInitialSegundaDados());
+    setOpenPessoaIndex("vitima");
+    setFonar2(Array(19).fill(""));
+    setValidationErrors([]);
+    showToast("Rascunho local descartado.");
+  };
+
+  useEffect(() => {
+    saveDraft(DRAFT_STORAGE_KEYS.segunda, {
+      telaAtual: "segunda",
+      step,
+      dados,
+      fonar2,
+      openPessoaIndex,
+    });
+  }, [step, dados, fonar2, openPessoaIndex]);
   if (exigeFonarAgora && !fonar2Incompleto) {
     perguntasFonar.forEach((pergunta, index) => {
       let resp = "NÃO INFORMADO";
@@ -3203,37 +3858,37 @@ ATENDIMENTO DE 2ª RESPOSTA - VISITA TRANQUILIZADORA
 =========================================
 Natureza principal no REDS: A 20.002 - Visita tranquilizadora para vítima de violência doméstica
 Natureza secundária no REDS: U 33.004 - Atendimento de denúncia de infrações contra a mulher (violência doméstica)
-REDS de Origem: ${dados.redsOrigem || "[PENDENTE - COMPLEMENTAR NO HISTÓRICO]"}
+REDS de Origem: ${dadosNormalizados.redsOrigem || "[PENDENTE - COMPLEMENTAR NO HISTÓRICO]"}
 
 [ DADOS DA VÍTIMA ]
-Nome: ${dados.vitima.nome || "[N/I]"}
-RG: ${dados.vitima.rg || "[N/I]"} | CPF: ${dados.vitima.cpf || "[N/I]"}
-Data Nasc: ${dados.vitima.nasc || "[N/I]"}
-Nome da Mãe: ${dados.vitima.mae || "[N/I]"}
-Telefone: ${dados.vitima.telefone || "[N/I]"}
-Endereço: ${dados.vitima.endereco || "[N/I]"}
+Nome: ${dadosNormalizados.vitima.nome || "[N/I]"}
+RG: ${dadosNormalizados.vitima.rg || "[N/I]"} | CPF: ${dadosNormalizados.vitima.cpf || "[N/I]"}
+Data Nasc: ${dadosNormalizados.vitima.nasc || "[N/I]"}
+Nome da Mãe: ${dadosNormalizados.vitima.mae || "[N/I]"}
+Telefone: ${dadosNormalizados.vitima.telefone || "[N/I]"}
+Endereço: ${dadosNormalizados.vitima.endereco || "[N/I]"}
 
 [ DADOS DA VISITA ]
-Data / hora da visita: ${dados.dataHoraVisita || "[N/I]"}
-Local da visita: ${dados.localVisita || "[N/I]"}
-Vítima localizada: ${dados.vitimaLocalizada || "[N/I]"}
-Forma do contacto: ${dados.formaContato || "[N/I]"}
-Contexto da ocorrência anterior: ${dados.contextoOcorrenciaAnterior || "[N/I]"}
-Estado atual da vítima: ${dados.estadoVitima || "[N/I]"}
-Novo fato após o REDS anterior: ${dados.novoFato || "[N/I]"}
+Data / hora da visita: ${dadosNormalizados.dataHoraVisita || "[N/I]"}
+Local da visita: ${dadosNormalizados.localVisita || "[N/I]"}
+Vítima localizada: ${dadosNormalizados.vitimaLocalizada || "[N/I]"}
+Forma do contacto: ${dadosNormalizados.formaContato || "[N/I]"}
+Contexto da ocorrência anterior: ${dadosNormalizados.contextoOcorrenciaAnterior || "[N/I]"}
+Estado atual da vítima: ${dadosNormalizados.estadoVitima || "[N/I]"}
+Novo fato após o REDS anterior: ${dadosNormalizados.novoFato || "[N/I]"}
 Descumprimento de MPU: ${dados.descumprimentoMpu ? "SIM" : "NÃO"}
-Local seguro / situação atual: ${dados.localSeguro || "[N/I]"}
-Necessidade de apoio / rede: ${dados.apoioRede || "[N/I]"}
+Local seguro / situação atual: ${dadosNormalizados.localSeguro || "[N/I]"}
+Necessidade de apoio / rede: ${dadosNormalizados.apoioRede || "[N/I]"}
 
 [ SITUAÇÃO ATUAL ]
 Novos contactos ou ameaças do autor? ${dados.contatoAutor ? "SIM" : "NÃO"}
 MPU deferida e vigente? ${dados.mpuVigente ? "SIM" : "NÃO"}
 
 [ SÍNTESE DA VISITA ]
-${dados.resumo || "[NÃO INFORMADO]"}
+${dadosNormalizados.resumo || "[NÃO INFORMADO]"}
 
 [ ENCAMINHAMENTO FINAL ]
-${dados.encaminhamentoFinal || "[NÃO INFORMADO]"}
+${dadosNormalizados.encaminhamentoFinal || "[NÃO INFORMADO]"}
 
 [ FONAR ]
 FONAR preenchido na 1ª resposta? ${
@@ -3269,6 +3924,16 @@ ${
         labels={["Qualificação", "Visita", "Relatório"]}
       />
 
+      <div className="mt-5 flex justify-end print:hidden">
+        <button
+          type="button"
+          onClick={handleDiscardDraft}
+          className={`rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-zinc-700 transition hover:bg-zinc-100 ${buttonFocusClassName}`}
+        >
+          Limpar dados
+        </button>
+      </div>
+
       {step === 1 && (
         <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
           <div>
@@ -3285,15 +3950,18 @@ ${
               <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
                 Nº do REDS (Origem)
               </label>
-              <input
-                type="text"
-                placeholder="Ex: 2026-000123456-001"
-                className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium"
-                value={dados.redsOrigem}
-                onChange={(e) =>
-                  setDados({ ...dados, redsOrigem: e.target.value })
-                }
-              />
+                <input
+                  type="text"
+                  placeholder="Ex: 2026-000123456-001"
+                  className={fieldClassName}
+                  value={dados.redsOrigem}
+                  onChange={(e) =>
+                  setDados({
+                    ...dados,
+                    redsOrigem: normalizeReds(e.target.value),
+                  })
+                  }
+                />
             </div>
 
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
@@ -3384,7 +4052,16 @@ ${
           </div>
 
           <button
-            onClick={() => setStep(2)}
+            onClick={() => {
+              const errors = validateCurrentStep();
+              if (errors.length > 0) {
+                setValidationErrors(errors);
+                window.scrollTo(0, 0);
+                return;
+              }
+              setValidationErrors([]);
+              setStep(2);
+            }}
             className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide mt-8"
           >
             Avançar{" "}
@@ -3393,6 +4070,13 @@ ${
               strokeWidth={2.5}
             />
           </button>
+
+          {validationErrors.length > 0 && (
+            <ValidationMessage
+              tone="error"
+              message={validationErrors.join(" ")}
+            />
+          )}
         </div>
       )}
 
@@ -3427,27 +4111,30 @@ ${
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Data / Hora
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: 06/04/2026 14:30"
-                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    className={fieldClassName}
                     value={dados.dataHoraVisita}
                     onChange={(e) =>
-                      setDados({ ...dados, dataHoraVisita: e.target.value })
+                      setDados({
+                        ...dados,
+                        dataHoraVisita: normalizeDateTime(e.target.value),
+                      })
                     }
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Local da Visita
                   </label>
                   <input
                     type="text"
                     placeholder="Ex: residência da vítima"
-                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    className={fieldClassName}
                     value={dados.localVisita}
                     onChange={(e) =>
                       setDados({ ...dados, localVisita: e.target.value })
@@ -3457,11 +4144,15 @@ ${
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label
+                    htmlFor={vitimaLocalizadaId}
+                    className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1"
+                  >
                     Vítima Localizada?
                   </label>
                   <select
-                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    id={vitimaLocalizadaId}
+                    className={fieldClassName}
                     value={dados.vitimaLocalizada}
                     onChange={(e) =>
                       setDados({ ...dados, vitimaLocalizada: e.target.value })
@@ -3473,11 +4164,11 @@ ${
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                     Forma do Contacto
                   </label>
                   <select
-                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    className={fieldClassName}
                     value={dados.formaContato}
                     onChange={(e) =>
                       setDados({ ...dados, formaContato: e.target.value })
@@ -3492,12 +4183,12 @@ ${
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
                   Contexto da Ocorrência Anterior
                 </label>
                 <textarea
                   rows="4"
-                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                  className={fieldClassName}
                   value={dados.contextoOcorrenciaAnterior}
                   onChange={(e) =>
                     setDados({
@@ -3527,11 +4218,15 @@ ${
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
+                  <label
+                    htmlFor={fonarPreenchidoId}
+                    className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1"
+                  >
                     O FONAR foi preenchido na 1ª resposta?
                   </label>
                   <select
-                    className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none transition text-zinc-900 shadow-sm font-medium text-sm"
+                    id={fonarPreenchidoId}
+                    className={fieldClassName}
                     value={dados.fonarPreenchidoPrimeiraResposta}
                     onChange={(e) =>
                       setDados({
@@ -3595,7 +4290,7 @@ ${
                 </span>
                 <input
                   type="checkbox"
-                  className="w-5 h-5 rounded border-red-300 text-red-500 focus:ring-red-500 bg-white"
+                  className={`w-5 h-5 rounded border-red-300 text-red-500 bg-white ${buttonFocusClassName}`}
                   checked={dados.riscoElevado}
                   onChange={(e) =>
                     setDados({ ...dados, riscoElevado: e.target.checked })
@@ -3611,7 +4306,7 @@ ${
                     </span>
                     <input
                       type="checkbox"
-                      className="w-5 h-5 rounded border-red-300 text-red-500 focus:ring-red-500 bg-white"
+                      className={`w-5 h-5 rounded border-red-300 text-red-500 bg-white ${buttonFocusClassName}`}
                       checked={dados.relacaoIntima}
                       onChange={(e) =>
                         setDados({ ...dados, relacaoIntima: e.target.checked })
@@ -3648,49 +4343,17 @@ ${
 
                 <div className="space-y-3">
                   {perguntasFonar.map((pergunta, idx) => (
-                    <div
+                    <FonarQuestionCard
                       key={idx}
-                      className={`p-4 rounded-2xl border transition-all duration-200 shadow-sm ${fonar2[idx] === "sim" ? "bg-red-50/50 border-red-200" : fonar2[idx] === "nao" ? "bg-emerald-50/50 border-emerald-200" : fonar2[idx] === "nsna" ? "bg-zinc-100 border-zinc-200" : "bg-white border-zinc-200"}`}
-                    >
-                      <p className="text-[13px] font-bold text-zinc-800 mb-3.5 leading-snug">
-                        <span className="text-yellow-600 mr-1.5 font-black">
-                          {idx + 1}.
-                        </span>{" "}
-                        {pergunta}
-                      </p>
-                      <div className="grid grid-cols-3 gap-2.5">
-                        <button
-                          onClick={() => {
-                            const nf = [...fonar2];
-                            nf[idx] = "sim";
-                            setFonar2(nf);
-                          }}
-                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "sim" ? "bg-red-500 text-white shadow-md ring-2 ring-red-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                        >
-                          Sim
-                        </button>
-                        <button
-                          onClick={() => {
-                            const nf = [...fonar2];
-                            nf[idx] = "nao";
-                            setFonar2(nf);
-                          }}
-                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "nao" ? "bg-emerald-500 text-white shadow-md ring-2 ring-emerald-500/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                        >
-                          Não
-                        </button>
-                        <button
-                          onClick={() => {
-                            const nf = [...fonar2];
-                            nf[idx] = "nsna";
-                            setFonar2(nf);
-                          }}
-                          className={`py-2.5 text-xs rounded-xl font-bold transition-all active:scale-[0.97] ${fonar2[idx] === "nsna" ? "bg-zinc-700 text-white shadow-md ring-2 ring-zinc-700/20" : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"}`}
-                        >
-                          NS / NA
-                        </button>
-                      </div>
-                    </div>
+                      pergunta={pergunta}
+                      idx={idx}
+                      value={fonar2[idx]}
+                      onChange={(nextValue) => {
+                        const nf = [...fonar2];
+                        nf[idx] = nextValue;
+                        setFonar2(nf);
+                      }}
+                    />
                   ))}
                 </div>
 
@@ -3715,13 +4378,17 @@ ${
                 Situação Atual e Encaminhamento
               </h3>
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+                <label
+                  htmlFor={estadoVitimaId}
+                  className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1"
+                >
                   Estado Atual da Vítima
                 </label>
                 <input
+                  id={estadoVitimaId}
                   type="text"
                   placeholder="Ex: calma, abalada, na casa de familiar, com medo"
-                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  className={fieldClassName}
                   value={dados.estadoVitima}
                   onChange={(e) =>
                     setDados({ ...dados, estadoVitima: e.target.value })
@@ -3729,26 +4396,34 @@ ${
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+                <label
+                  htmlFor={novoFatoId}
+                  className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1"
+                >
                   Novo Fato Após o REDS
                 </label>
                 <input
+                  id={novoFatoId}
                   type="text"
                   placeholder="Ex: não houve / novas mensagens / nova ameaça verbal"
-                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  className={fieldClassName}
                   value={dados.novoFato}
                   onChange={(e) =>
                     setDados({ ...dados, novoFato: e.target.value })
                   }
                 />
               </div>
-              <label className="flex items-center justify-between cursor-pointer rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <label
+                htmlFor={descumprimentoMpuId}
+                className="flex items-center justify-between cursor-pointer rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3"
+              >
                 <span className="text-sm font-bold text-zinc-800">
                   Houve descumprimento de MPU?
                 </span>
                 <input
+                  id={descumprimentoMpuId}
                   type="checkbox"
-                  className="w-5 h-5 rounded border-zinc-300 text-yellow-500 focus:ring-yellow-500 bg-white"
+                  className={`w-5 h-5 rounded border-zinc-300 text-yellow-500 bg-white ${buttonFocusClassName}`}
                   checked={dados.descumprimentoMpu}
                   onChange={(e) =>
                     setDados({ ...dados, descumprimentoMpu: e.target.checked })
@@ -3756,13 +4431,17 @@ ${
                 />
               </label>
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+                <label
+                  htmlFor={localSeguroId}
+                  className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1"
+                >
                   Local Seguro / Situação Atual
                 </label>
                 <input
+                  id={localSeguroId}
                   type="text"
                   placeholder="Ex: permanece no local / foi para casa da mãe / endereço alterado"
-                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  className={fieldClassName}
                   value={dados.localSeguro}
                   onChange={(e) =>
                     setDados({ ...dados, localSeguro: e.target.value })
@@ -3770,13 +4449,17 @@ ${
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1">
+                <label
+                  htmlFor={apoioRedeId}
+                  className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1"
+                >
                   Necessidade de Apoio / Rede
                 </label>
                 <input
+                  id={apoioRedeId}
                   type="text"
                   placeholder="Ex: CEAM Bem-Me-Quero, DEAM, NUDEM, apoio familiar, atendimento médico"
-                  className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                  className={fieldClassName}
                   value={dados.apoioRede}
                   onChange={(e) =>
                     setDados({ ...dados, apoioRede: e.target.value })
@@ -3787,14 +4470,18 @@ ${
             )}
 
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2">
+              <label
+                htmlFor={resumoId}
+                className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2"
+              >
                 {vitimaNaoLocalizada
                   ? "Resumo das Diligências"
                   : "Resumo da Visita"}
               </label>
               <textarea
+                id={resumoId}
                 rows="3"
-                className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                className={fieldClassName}
                 value={dados.resumo}
                 onChange={(e) => setDados({ ...dados, resumo: e.target.value })}
                 placeholder={
@@ -3805,12 +4492,16 @@ ${
               ></textarea>
             </div>
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2">
+              <label
+                htmlFor={encaminhamentoId}
+                className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 ml-1 mt-2"
+              >
                 Encaminhamento Final
               </label>
               <textarea
+                id={encaminhamentoId}
                 rows="3"
-                className="w-full p-3.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-sm transition text-zinc-900 shadow-sm font-medium"
+                className={fieldClassName}
                 value={dados.encaminhamentoFinal}
                 onChange={(e) =>
                   setDados({ ...dados, encaminhamentoFinal: e.target.value })
@@ -3824,21 +4515,60 @@ ${
             </div>
           </div>
 
+          {!dados.vitimaLocalizada && (
+            <ValidationMessage message="Informe se a vítima foi localizada para continuar o fluxo da 2ª resposta." />
+          )}
+
+          {dados.vitimaLocalizada &&
+            !vitimaNaoLocalizada &&
+            !dados.fonarPreenchidoPrimeiraResposta && (
+              <ValidationMessage message="Indique se o FONAR já foi preenchido na 1ª resposta antes de gerar o relatório." />
+            )}
+
+          {exigeFonarAgora && !vitimaNaoLocalizada && fonar2Incompleto && (
+            <ValidationMessage message="Complete as 19 respostas do FONAR pendente para liberar o relatório." />
+          )}
+
+          {validationErrors.length > 0 && (
+            <ValidationMessage
+              tone="error"
+              message={validationErrors.join(" ")}
+            />
+          )}
+
           <div className="flex space-x-3 pt-4">
             <button
-              onClick={() => setStep(1)}
+              onClick={() => {
+                setValidationErrors([]);
+                setStep(1);
+              }}
               className="bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-bold p-4 rounded-2xl transition-colors shadow-sm"
             >
               <ChevronLeft className="w-6 h-6" strokeWidth={2} />
             </button>
             <button
-              onClick={() => setStep(3)}
+              type="button"
+              onClick={() => {
+                const errors = validateCurrentStep();
+                if (errors.length > 0) {
+                  setValidationErrors(errors);
+                  window.scrollTo(0, 0);
+                  return;
+                }
+                setValidationErrors([]);
+                setStep(3);
+              }}
               disabled={
                 !dados.vitimaLocalizada ||
                 (!vitimaNaoLocalizada &&
                   (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
               }
-              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${
+              aria-disabled={
+                !dados.vitimaLocalizada ||
+                (!vitimaNaoLocalizada &&
+                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
+              }
+              className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${buttonFocusClassName} ${
                 !dados.vitimaLocalizada ||
                 (!vitimaNaoLocalizada &&
                   (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
@@ -4007,7 +4737,10 @@ Produza somente o histórico final da 2ª resposta, pronto para revisão policia
                     <ChevronLeft className="w-6 h-6" strokeWidth={2} />
                   </button>
                   <button
-                    onClick={() => setTelaAtual("home")}
+                    onClick={() => {
+                      clearDraft(DRAFT_STORAGE_KEYS.segunda);
+                      setTelaAtual("home");
+                    }}
                     className="flex-1 bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all active:scale-[0.98] tracking-wide"
                   >
                     <Save
