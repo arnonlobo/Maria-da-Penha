@@ -171,9 +171,9 @@ const fonteRedeApoioContagem =
 
 const DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
 const DRAFT_STORAGE_KEYS = {
-  fonar: "draft-fonar-avulso",
-  primeira: "draft-primeira-resposta",
-  segunda: "draft-segunda-resposta",
+  fonar: "draft-fonar-avulso-v2",
+  primeira: "draft-primeira-resposta-v2",
+  segunda: "draft-segunda-resposta-v2",
 };
 
 const createEmptyPerson = () => ({
@@ -584,6 +584,50 @@ function ValidationMessage({ message, tone = "warning" }) {
   );
 }
 
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      message: error?.message || "Erro inesperado ao renderizar a tela.",
+    };
+  }
+
+  componentDidCatch(error) {
+    console.error(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-5">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-700">
+              Erro na tela
+            </p>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-red-900">
+              {this.state.message}
+            </p>
+            <button
+              type="button"
+              onClick={this.props.onReset}
+              className="mt-4 rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-900"
+            >
+              Voltar ao menu
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function FonarQuestionCard({ pergunta, idx, value, onChange }) {
   const questionId = `fonar-pergunta-${idx}`;
   const options = [
@@ -766,6 +810,31 @@ const validateDateTime = (value = "") => {
   return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
 };
 
+const parseDateTime = (value = "") => {
+  if (typeof value !== "string" || !validateDateTime(value)) return null;
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy, hh, mi] = match;
+  return new Date(
+    Number(yyyy),
+    Number(mm) - 1,
+    Number(dd),
+    Number(hh),
+    Number(mi),
+  );
+};
+
+const formatDateTime = (date) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
+
 const validatePhone = (value = "") => {
   const digits = digitsOnly(value);
   return !digits || digits.length === 10 || digits.length === 11;
@@ -816,6 +885,30 @@ const clearDraft = (storageKey) => {
   window.localStorage.removeItem(storageKey);
 };
 
+const sanitizeStep = (value, min, max) => {
+  const numericValue = Number(value);
+  if (!Number.isInteger(numericValue)) return min;
+  if (numericValue < min || numericValue > max) return min;
+  return numericValue;
+};
+
+const sanitizeTelaAtual = (value) => {
+  const telasValidas = new Set([
+    "capa",
+    "home",
+    "primeira",
+    "segunda",
+    "fonar",
+    "guia_legal",
+    "naturezas",
+    "rede_apoio",
+    "modelos",
+    "faq",
+    "fluxograma",
+  ]);
+  return telasValidas.has(value) ? value : "capa";
+};
+
 const getLatestDraft = () =>
   Object.entries(DRAFT_STORAGE_KEYS)
     .map(([flow, storageKey]) => {
@@ -825,75 +918,78 @@ const getLatestDraft = () =>
     .filter(Boolean)
     .sort((a, b) => b.draft.savedAt - a.draft.savedAt)[0] || null;
 
-const normalizePerson = (person) => ({
-  nome: normalizeInlineText(person.nome),
-  rg: normalizeRg(person.rg),
-  cpf: normalizeCpf(person.cpf),
-  nasc: normalizeDate(person.nasc),
-  telefone: normalizePhone(person.telefone),
-  mae: normalizeInlineText(person.mae),
-  endereco: normalizeMultilineText(person.endereco),
+const normalizePerson = (person = createEmptyPerson()) => ({
+  nome: normalizeInlineText(person?.nome),
+  rg: normalizeRg(person?.rg),
+  cpf: normalizeCpf(person?.cpf),
+  nasc: normalizeDate(person?.nasc),
+  telefone: normalizePhone(person?.telefone),
+  mae: normalizeInlineText(person?.mae),
+  endereco: normalizeMultilineText(person?.endereco),
 });
 
 const validatePerson = (person, label) => {
+  const safePerson = person || createEmptyPerson();
   const errors = [];
-  if (!validateRg(person.rg)) errors.push(`${label}: RG inválido.`);
-  if (!validateCpf(person.cpf)) errors.push(`${label}: CPF inválido.`);
-  if (!validateDate(person.nasc))
+  if (!validateRg(safePerson.rg)) errors.push(`${label}: RG inválido.`);
+  if (!validateCpf(safePerson.cpf)) errors.push(`${label}: CPF inválido.`);
+  if (!validateDate(safePerson.nasc))
     errors.push(`${label}: data de nascimento inválida (use DD/MM/AAAA).`);
-  if (!validatePhone(person.telefone))
+  if (!validatePhone(safePerson.telefone))
     errors.push(`${label}: telefone inválido.`);
   return errors;
 };
 
 const normalizePrimeiraDados = (dados) => ({
   ...dados,
-  vitima: normalizePerson(dados.vitima),
-  autor: normalizePerson(dados.autor),
-  testemunhas: dados.testemunhas.map(normalizePerson),
-  relacao: normalizeInlineText(dados.relacao),
-  temFilhos: normalizeInlineText(dados.temFilhos),
-  tempoRelacao: normalizeInlineText(dados.tempoRelacao),
-  tempoSeparacao: normalizeInlineText(dados.tempoSeparacao),
-  residencia: normalizeInlineText(dados.residencia),
-  usoDrogas: normalizeInlineText(dados.usoDrogas),
-  arma: normalizeInlineText(dados.arma),
-  motivo: normalizeInlineText(dados.motivo),
-  versaoVitima: normalizeMultilineText(dados.versaoVitima),
-  versaoAutor: normalizeMultilineText(dados.versaoAutor),
-  desordem: normalizeInlineText(dados.desordem),
-  socorro: normalizeInlineText(dados.socorro),
-  materiais: normalizeInlineText(dados.materiais),
-  mpu: normalizeInlineText(dados.mpu),
-  origemAcionamento: normalizeInlineText(dados.origemAcionamento),
-  dataHoraFato: normalizeDateTime(dados.dataHoraFato),
-  filhosDetalhe: normalizeInlineText(dados.filhosDetalhe),
-  lesoes: normalizeInlineText(dados.lesoes),
-  dizeresAutor: normalizeMultilineText(dados.dizeresAutor),
-  danos: normalizeInlineText(dados.danos),
-  provas: normalizeInlineText(dados.provas),
-  destinoVitima: normalizeInlineText(dados.destinoVitima),
-  destinoAutor: normalizeInlineText(dados.destinoAutor),
-  acompanhamento: normalizeInlineText(dados.acompanhamento),
+  vitima: normalizePerson(dados?.vitima),
+  autor: normalizePerson(dados?.autor),
+  testemunhas: Array.isArray(dados?.testemunhas)
+    ? dados.testemunhas.map(normalizePerson)
+    : [],
+  relacao: normalizeInlineText(dados?.relacao),
+  temFilhos: normalizeInlineText(dados?.temFilhos),
+  tempoRelacao: normalizeInlineText(dados?.tempoRelacao),
+  tempoSeparacao: normalizeInlineText(dados?.tempoSeparacao),
+  residencia: normalizeInlineText(dados?.residencia),
+  usoDrogas: normalizeInlineText(dados?.usoDrogas),
+  arma: normalizeInlineText(dados?.arma),
+  motivo: normalizeInlineText(dados?.motivo),
+  versaoVitima: normalizeMultilineText(dados?.versaoVitima),
+  versaoAutor: normalizeMultilineText(dados?.versaoAutor),
+  desordem: normalizeInlineText(dados?.desordem),
+  socorro: normalizeInlineText(dados?.socorro),
+  materiais: normalizeInlineText(dados?.materiais),
+  mpu: normalizeInlineText(dados?.mpu),
+  origemAcionamento: normalizeInlineText(dados?.origemAcionamento),
+  dataHoraFato: normalizeDateTime(dados?.dataHoraFato),
+  filhosDetalhe: normalizeInlineText(dados?.filhosDetalhe),
+  lesoes: normalizeInlineText(dados?.lesoes),
+  dizeresAutor: normalizeMultilineText(dados?.dizeresAutor),
+  danos: normalizeInlineText(dados?.danos),
+  provas: normalizeInlineText(dados?.provas),
+  destinoVitima: normalizeInlineText(dados?.destinoVitima),
+  destinoAutor: normalizeInlineText(dados?.destinoAutor),
+  acompanhamento: normalizeInlineText(dados?.acompanhamento),
 });
 
 const normalizeSegundaDados = (dados) => ({
   ...dados,
-  redsOrigem: normalizeReds(dados.redsOrigem),
-  dataHoraVisita: normalizeDateTime(dados.dataHoraVisita),
-  localVisita: normalizeInlineText(dados.localVisita),
-  vitimaLocalizada: normalizeInlineText(dados.vitimaLocalizada),
-  formaContato: normalizeInlineText(dados.formaContato),
+  redsOrigem: normalizeReds(dados?.redsOrigem),
+  dataHoraVisita: normalizeDateTime(dados?.dataHoraVisita),
+  localVisita: normalizeInlineText(dados?.localVisita),
+  vitimaLocalizada: normalizeInlineText(dados?.vitimaLocalizada),
+  formaContato: normalizeInlineText(dados?.formaContato),
   contextoOcorrenciaAnterior: normalizeMultilineText(
-    dados.contextoOcorrenciaAnterior,
+    dados?.contextoOcorrenciaAnterior,
   ),
-  estadoVitima: normalizeInlineText(dados.estadoVitima),
-  novoFato: normalizeInlineText(dados.novoFato),
-  localSeguro: normalizeInlineText(dados.localSeguro),
-  apoioRede: normalizeInlineText(dados.apoioRede),
-  encaminhamentoFinal: normalizeMultilineText(dados.encaminhamentoFinal),
-  resumo: normalizeMultilineText(dados.resumo),
-  vitima: normalizePerson(dados.vitima),
+  estadoVitima: normalizeInlineText(dados?.estadoVitima),
+  novoFato: normalizeInlineText(dados?.novoFato),
+  localSeguro: normalizeInlineText(dados?.localSeguro),
+  apoioRede: normalizeInlineText(dados?.apoioRede),
+  encaminhamentoFinal: normalizeMultilineText(dados?.encaminhamentoFinal),
+  resumo: normalizeMultilineText(dados?.resumo),
+  vitima: normalizePerson(dados?.vitima),
 });
 
 const buildFonarText = (fonar, observacoes = "") => {
@@ -926,7 +1022,7 @@ export default function App() {
     const latestDraft = getLatestDraft();
     if (!latestDraft) return;
     if (latestDraft.draft?.telaAtual) {
-      setTelaAtual(latestDraft.draft.telaAtual);
+      setTelaAtual(sanitizeTelaAtual(latestDraft.draft.telaAtual));
       showToast("Rascunho local restaurado.");
     }
   }, []);
@@ -973,7 +1069,14 @@ export default function App() {
           {telaAtual === "capa" && <CoverScreen setTelaAtual={setTelaAtual} />}
           {telaAtual === "home" && <HomeScreen setTelaAtual={setTelaAtual} />}
           {telaAtual === "primeira" && (
-            <PrimeiraResposta setTelaAtual={setTelaAtual} />
+            <ScreenErrorBoundary
+              onReset={() => {
+                clearDraft(DRAFT_STORAGE_KEYS.primeira);
+                setTelaAtual("home");
+              }}
+            >
+              <PrimeiraResposta setTelaAtual={setTelaAtual} />
+            </ScreenErrorBoundary>
           )}
           {telaAtual === "segunda" && (
             <SegundaResposta setTelaAtual={setTelaAtual} />
@@ -1123,7 +1226,10 @@ function HomeScreen({ setTelaAtual }) {
       <div className="space-y-4">
         {/* Botão 1ª Resposta */}
         <button
-          onClick={() => setTelaAtual("primeira")}
+          onClick={() => {
+            clearDraft(DRAFT_STORAGE_KEYS.primeira);
+            setTelaAtual("primeira");
+          }}
           className="w-full bg-zinc-950 hover:bg-zinc-800 text-white p-5 rounded-2xl flex items-center shadow-md transition-all active:scale-[0.98] border border-zinc-800 group"
         >
           <div className="bg-zinc-800/50 p-3.5 rounded-xl mr-4 group-hover:bg-yellow-500/10 transition-colors">
@@ -2546,7 +2652,26 @@ function FonarAvulso({ setTelaAtual }) {
 // ==========================================
 function PrimeiraResposta({ setTelaAtual }) {
   const primeiraDraft = readDraft(DRAFT_STORAGE_KEYS.primeira);
-  const [step, setStep] = useState(primeiraDraft?.step || 1);
+  const primeiraDraftDados = primeiraDraft?.dados || {};
+  const primeiraDadosIniciais = {
+    ...createInitialPrimeiraDados(),
+    ...primeiraDraftDados,
+    vitima: {
+      ...createEmptyPerson(),
+      ...(primeiraDraftDados.vitima || {}),
+    },
+    autor: {
+      ...createEmptyPerson(),
+      ...(primeiraDraftDados.autor || {}),
+    },
+    testemunhas: Array.isArray(primeiraDraftDados.testemunhas)
+      ? primeiraDraftDados.testemunhas.map((testemunha) => ({
+          ...createEmptyPerson(),
+          ...(testemunha || {}),
+        }))
+      : [],
+  };
+  const [step, setStep] = useState(sanitizeStep(primeiraDraft?.step, 1, 5));
   const hoje = new Date();
   const prazoRetorno = new Date(hoje);
   prazoRetorno.setDate(prazoRetorno.getDate() + 3);
@@ -2561,63 +2686,29 @@ function PrimeiraResposta({ setTelaAtual }) {
   const prazoRetornoFormatado = formatarData(prazoRetorno);
 
   // Estado estruturado para pessoas
-  const [dados, setDados] = useState(
-    primeiraDraft?.dados || {
-      vitima: {
-        nome: "",
-        rg: "",
-        cpf: "",
-        nasc: "",
-        telefone: "",
-        mae: "",
-        endereco: "",
-      },
-      autor: {
-        nome: "",
-        rg: "",
-        cpf: "",
-        nasc: "",
-        telefone: "",
-        mae: "",
-        endereco: "",
-      },
-      testemunhas: [],
-      relacao: "",
-      temFilhos: "",
-      tempoRelacao: "",
-      tempoSeparacao: "",
-      residencia: "",
-      ciumento: false,
-      naoAceitaTermino: false,
-      usoDrogas: "",
-      arma: "",
-      motivo: "",
-      versaoVitima: "",
-      versaoAutor: "",
-      desordem: "",
-      socorro: "",
-      materiais: "",
-      mpu: "",
-      origemAcionamento: "",
-      dataHoraFato: "",
-      filhosDetalhe: "",
-      lesoes: "",
-      dizeresAutor: "",
-      danos: "",
-      provas: "",
-      destinoVitima: "",
-      destinoAutor: "",
-      acompanhamento: "",
-    },
-  );
+  const [dados, setDados] = useState(primeiraDadosIniciais);
   // Controlo de Abas Abertas
   const [openPessoaIndex, setOpenPessoaIndex] = useState(
-    primeiraDraft?.openPessoaIndex || "vitima",
+    typeof primeiraDraft?.openPessoaIndex === "string" ||
+      primeiraDraft?.openPessoaIndex === null
+      ? primeiraDraft.openPessoaIndex
+      : "vitima",
   );
 
-  const [fonar, setFonar] = useState(primeiraDraft?.fonar || Array(19).fill(""));
+  const [fonar, setFonar] = useState(
+    Array.isArray(primeiraDraft?.fonar) && primeiraDraft.fonar.length === 19
+      ? primeiraDraft.fonar
+      : Array(19).fill(""),
+  );
   const [validationErrors, setValidationErrors] = useState([]);
   const dadosNormalizados = normalizePrimeiraDados(dados);
+  const dataFatoCalculada = parseDateTime(dadosNormalizados.dataHoraFato);
+  const prazoSegundaResposta = dataFatoCalculada
+    ? new Date(dataFatoCalculada.getTime() + 72 * 60 * 60 * 1000)
+    : null;
+  const prazoSegundaRespostaFormatado = prazoSegundaResposta
+    ? formatDateTime(prazoSegundaResposta)
+    : "";
 
   const step2ValidationErrors = [
     ...validatePerson(dados.vitima, "Vítima"),
@@ -3710,6 +3801,38 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
             );
           })()}
 
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm print:hidden">
+            <div className="flex items-start space-x-3">
+              <Clock3
+                className="w-5 h-5 flex-shrink-0 text-amber-700 mt-0.5"
+                strokeWidth={2}
+              />
+              <div>
+                <p className="text-[11px] font-black text-amber-800 uppercase tracking-widest mb-1">
+                  Prazo para 2ª Resposta
+                </p>
+                <p className="text-sm leading-relaxed text-amber-900 font-medium">
+                  {prazoSegundaRespostaFormatado ? (
+                    <>
+                      Caso a ocorrência exija visita de 2ª resposta, ela deve
+                      ser realizada até{" "}
+                      <strong>{prazoSegundaRespostaFormatado}</strong>,
+                      considerando o prazo de 72 horas a partir do fato
+                      informado.
+                    </>
+                  ) : (
+                    <>
+                      Caso a ocorrência exija visita de 2ª resposta, ela deve
+                      ser realizada em até <strong>72 horas</strong> após o
+                      fato. Preencha corretamente a data e hora do fato para o
+                      sistema calcular o prazo exato.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex space-x-3 pt-4 print:hidden">
             <button
               onClick={handlePrev}
@@ -3742,52 +3865,42 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
 // ==========================================
 function SegundaResposta({ setTelaAtual }) {
   const segundaDraft = readDraft(DRAFT_STORAGE_KEYS.segunda);
-  const [step, setStep] = useState(segundaDraft?.step || 1);
-  const [dados, setDados] = useState(
-    segundaDraft?.dados || {
-      redsOrigem: "",
-      fonarPreenchidoPrimeiraResposta: "",
-      contatoAutor: false,
-      mpuVigente: false,
-      riscoElevado: false,
-      relacaoIntima: false,
-      resumo: "",
-      dataHoraVisita: "",
-      localVisita: "",
-      vitimaLocalizada: "",
-      formaContato: "",
-      contextoOcorrenciaAnterior: "",
-      estadoVitima: "",
-      novoFato: "",
-      descumprimentoMpu: false,
-      localSeguro: "",
-      apoioRede: "",
-      encaminhamentoFinal: "",
-      vitima: {
-        nome: "",
-        rg: "",
-        cpf: "",
-        nasc: "",
-        telefone: "",
-        mae: "",
-        endereco: "",
-      },
+  const segundaDraftDados = segundaDraft?.dados || {};
+  const segundaDadosIniciais = {
+    ...createInitialSegundaDados(),
+    ...segundaDraftDados,
+    vitima: {
+      ...createEmptyPerson(),
+      ...(segundaDraftDados.vitima || {}),
     },
-  );
+  };
+  const [step, setStep] = useState(sanitizeStep(segundaDraft?.step, 1, 3));
+  const [dados, setDados] = useState(segundaDadosIniciais);
 
   const [openPessoaIndex, setOpenPessoaIndex] = useState(
-    segundaDraft?.openPessoaIndex || "vitima",
+    typeof segundaDraft?.openPessoaIndex === "string" ||
+      segundaDraft?.openPessoaIndex === null
+      ? segundaDraft.openPessoaIndex
+      : "vitima",
   );
   const [fonar2, setFonar2] = useState(
-    segundaDraft?.fonar2 || Array(19).fill(""),
+    Array.isArray(segundaDraft?.fonar2) && segundaDraft.fonar2.length === 19
+      ? segundaDraft.fonar2
+      : Array(19).fill(""),
   );
   const [validationErrors, setValidationErrors] = useState([]);
   const updateVitima = (field, val) =>
     setDados({ ...dados, vitima: { ...dados.vitima, [field]: val } });
   const vitimaNaoLocalizada = dados.vitimaLocalizada === "Não";
+  const precisaConfirmarFonar =
+    dados.vitimaLocalizada === "Sim" && !vitimaNaoLocalizada;
+  const fonarStatusPendente =
+    precisaConfirmarFonar && !dados.fonarPreenchidoPrimeiraResposta;
   const exigeFonarAgora = dados.fonarPreenchidoPrimeiraResposta === "nao";
   const fonar2Incompleto =
     exigeFonarAgora && !vitimaNaoLocalizada && fonar2.includes("");
+  const bloqueiaGeracaoRelatorio =
+    !dados.vitimaLocalizada || fonarStatusPendente || fonar2Incompleto;
   const simCount2 = fonar2.filter((a) => a === "sim").length;
   const nsNaCount2 = fonar2.filter((a) => a === "nsna").length;
   const riscoFonar2 =
@@ -4558,20 +4671,10 @@ ${
                 setValidationErrors([]);
                 setStep(3);
               }}
-              disabled={
-                !dados.vitimaLocalizada ||
-                (!vitimaNaoLocalizada &&
-                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
-              }
-              aria-disabled={
-                !dados.vitimaLocalizada ||
-                (!vitimaNaoLocalizada &&
-                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
-              }
+              disabled={bloqueiaGeracaoRelatorio}
+              aria-disabled={bloqueiaGeracaoRelatorio}
               className={`flex-1 font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg transition-all tracking-wide ${buttonFocusClassName} ${
-                !dados.vitimaLocalizada ||
-                (!vitimaNaoLocalizada &&
-                  (!dados.fonarPreenchidoPrimeiraResposta || fonar2Incompleto))
+                bloqueiaGeracaoRelatorio
                   ? "bg-zinc-200 text-zinc-400 cursor-not-allowed"
                   : "bg-zinc-950 hover:bg-zinc-800 text-white active:scale-[0.98]"
               }`}
@@ -4579,10 +4682,7 @@ ${
               Gerar Relatório{" "}
               <ChevronRight
                 className={`ml-2 w-5 h-5 ${
-                  !dados.vitimaLocalizada ||
-                  (!vitimaNaoLocalizada &&
-                    (!dados.fonarPreenchidoPrimeiraResposta ||
-                      fonar2Incompleto))
+                  bloqueiaGeracaoRelatorio
                     ? "text-zinc-300"
                     : "text-yellow-500"
                 }`}
