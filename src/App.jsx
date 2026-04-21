@@ -2853,6 +2853,11 @@ function PrimeiraResposta({ setTelaAtual }) {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const recognitionRef = useRef(null);
+  const dictationBaseRef = useRef("");
+  const dictationSessionRef = useRef("");
+  const lastCommittedBaseRef = useRef("");
+  const lastCommittedSessionRef = useRef("");
+  const skipNextDictationCommitRef = useRef(false);
   const dadosNormalizados = normalizePrimeiraDados(dados);
   const speechRecognitionSupported = !!createSpeechRecognition();
   const dataFatoCalculada = parseDateTime(dadosNormalizados.dataHoraFato);
@@ -2914,6 +2919,11 @@ function PrimeiraResposta({ setTelaAtual }) {
     }
     setIsDictating(false);
     setDictationPreview("");
+    dictationBaseRef.current = "";
+    dictationSessionRef.current = "";
+    lastCommittedBaseRef.current = "";
+    lastCommittedSessionRef.current = "";
+    skipNextDictationCommitRef.current = false;
     setIsGettingLocation(false);
     setValidationErrors([]);
     showToast("Rascunho local descartado.");
@@ -3034,7 +3044,89 @@ function PrimeiraResposta({ setTelaAtual }) {
       recognitionRef.current = null;
     }
     setIsDictating(false);
+  };
+
+  const mergeDictationText = (baseText, sessionText) =>
+    normalizeMultilineText(
+      [baseText, sessionText].filter(Boolean).join(baseText && sessionText ? " " : ""),
+    );
+
+  const commitDictationSession = () => {
+    if (skipNextDictationCommitRef.current) {
+      skipNextDictationCommitRef.current = false;
+      dictationSessionRef.current = "";
+      setDictationPreview("");
+      return;
+    }
+
+    const mergedText = mergeDictationText(
+      dictationBaseRef.current,
+      dictationSessionRef.current,
+    );
+
+    setDados((current) => ({
+      ...current,
+      historicoNarrado: mergedText,
+    }));
+
+    lastCommittedBaseRef.current = dictationBaseRef.current;
+    lastCommittedSessionRef.current = dictationSessionRef.current;
+    dictationBaseRef.current = mergedText;
+    dictationSessionRef.current = "";
     setDictationPreview("");
+  };
+
+  const clearCurrentDictationSession = () => {
+    if (isDictating) {
+      skipNextDictationCommitRef.current = true;
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      setDados((current) => ({
+        ...current,
+        historicoNarrado: dictationBaseRef.current,
+      }));
+      dictationSessionRef.current = "";
+      setDictationPreview("");
+      setIsDictating(false);
+      showToast("Ditado atual descartado.");
+      return;
+    }
+
+    if (lastCommittedSessionRef.current) {
+      setDados((current) => ({
+        ...current,
+        historicoNarrado: lastCommittedBaseRef.current,
+      }));
+      dictationBaseRef.current = lastCommittedBaseRef.current;
+      dictationSessionRef.current = "";
+      lastCommittedSessionRef.current = "";
+      setDictationPreview("");
+      showToast("Última sessão de ditado removida.");
+      return;
+    }
+
+    showToast("Não há sessão de ditado para limpar.", "error");
+  };
+
+  const appendNewDictationBlock = () => {
+    if (isDictating) {
+      showToast("Pare o ditado atual antes de abrir uma nova fala.", "error");
+      return;
+    }
+
+    setDados((current) => {
+      const currentText = current.historicoNarrado || "";
+      const nextText = currentText.trimEnd()
+        ? `${currentText.trimEnd()}\n\n`
+        : currentText;
+      return {
+        ...current,
+        historicoNarrado: nextText,
+      };
+    });
+    showToast("Novo bloco preparado para a próxima fala.");
   };
 
   const startDictation = () => {
@@ -3050,41 +3142,30 @@ function PrimeiraResposta({ setTelaAtual }) {
     recognition.lang = "pt-BR";
     recognition.continuous = true;
     recognition.interimResults = true;
+    dictationBaseRef.current = dados.historicoNarrado || "";
+    dictationSessionRef.current = "";
+    setDictationPreview("");
 
     recognition.onresult = (event) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        if (event.results[index].isFinal) {
-          finalTranscript += event.results[index][0].transcript;
-        } else {
-          interimTranscript += event.results[index][0].transcript;
-        }
-      }
+      const sessionTranscript = Array.from(event.results)
+        .map((result) => result[0]?.transcript?.trim())
+        .filter(Boolean)
+        .join(" ")
+        .trim();
 
-      if (finalTranscript.trim()) {
-        setDados((current) => ({
-          ...current,
-          historicoNarrado: normalizeMultilineText(
-            `${current.historicoNarrado || ""}${
-              current.historicoNarrado ? " " : ""
-            }${finalTranscript}`.trim(),
-          ),
-        }));
-      }
-
-      setDictationPreview(interimTranscript.trim());
+      dictationSessionRef.current = sessionTranscript;
+      setDictationPreview(sessionTranscript);
     };
 
     recognition.onerror = () => {
+      commitDictationSession();
       setIsDictating(false);
-      setDictationPreview("");
       showToast("Falha ao capturar o áudio do ditado.", "error");
     };
 
     recognition.onend = () => {
+      commitDictationSession();
       setIsDictating(false);
-      setDictationPreview("");
       recognitionRef.current = null;
     };
 
@@ -3776,15 +3857,41 @@ function PrimeiraResposta({ setTelaAtual }) {
                   rows="4"
                   placeholder="Ex: a vítima relatou que o autor chegou exaltado, proferiu ameaças e arremessou objetos no interior da residência..."
                   className={`${compactFieldClassName} mt-3`}
-                  value={[dados.historicoNarrado, dictationPreview]
-                    .filter(Boolean)
-                    .join(" ")
-                    .trim()}
+                  value={
+                    isDictating
+                      ? mergeDictationText(
+                          dictationBaseRef.current,
+                          dictationPreview,
+                        )
+                      : dados.historicoNarrado
+                  }
                   disabled={isDictating}
                   onChange={(e) =>
                     setDados({ ...dados, historicoNarrado: e.target.value })
                   }
                 ></textarea>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearCurrentDictationSession}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-zinc-700 transition-colors hover:bg-zinc-100"
+                  >
+                    Limpar ditado da sessão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={appendNewDictationBlock}
+                    disabled={isDictating}
+                    className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-wide transition-colors ${
+                      isDictating
+                        ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
+                        : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100"
+                    }`}
+                  >
+                    Anexar nova fala
+                  </button>
+                </div>
 
                 <p className="mt-2 text-[11px] font-medium text-zinc-500">
                   {speechRecognitionSupported
