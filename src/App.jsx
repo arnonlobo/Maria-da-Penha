@@ -2855,6 +2855,8 @@ function PrimeiraResposta({ setTelaAtual }) {
   const recognitionRef = useRef(null);
   const dictationBaseRef = useRef("");
   const dictationSessionRef = useRef("");
+  const dictationFinalPartsRef = useRef([]);
+  const dictationInterimPartRef = useRef("");
   const lastCommittedBaseRef = useRef("");
   const lastCommittedSessionRef = useRef("");
   const skipNextDictationCommitRef = useRef(false);
@@ -2921,6 +2923,8 @@ function PrimeiraResposta({ setTelaAtual }) {
     setDictationPreview("");
     dictationBaseRef.current = "";
     dictationSessionRef.current = "";
+    dictationFinalPartsRef.current = [];
+    dictationInterimPartRef.current = "";
     lastCommittedBaseRef.current = "";
     lastCommittedSessionRef.current = "";
     skipNextDictationCommitRef.current = false;
@@ -3055,6 +3059,8 @@ function PrimeiraResposta({ setTelaAtual }) {
     if (skipNextDictationCommitRef.current) {
       skipNextDictationCommitRef.current = false;
       dictationSessionRef.current = "";
+      dictationFinalPartsRef.current = [];
+      dictationInterimPartRef.current = "";
       setDictationPreview("");
       return;
     }
@@ -3073,6 +3079,8 @@ function PrimeiraResposta({ setTelaAtual }) {
     lastCommittedSessionRef.current = dictationSessionRef.current;
     dictationBaseRef.current = mergedText;
     dictationSessionRef.current = "";
+    dictationFinalPartsRef.current = [];
+    dictationInterimPartRef.current = "";
     setDictationPreview("");
   };
 
@@ -3088,6 +3096,8 @@ function PrimeiraResposta({ setTelaAtual }) {
         historicoNarrado: dictationBaseRef.current,
       }));
       dictationSessionRef.current = "";
+      dictationFinalPartsRef.current = [];
+      dictationInterimPartRef.current = "";
       setDictationPreview("");
       setIsDictating(false);
       showToast("Ditado atual descartado.");
@@ -3101,6 +3111,8 @@ function PrimeiraResposta({ setTelaAtual }) {
       }));
       dictationBaseRef.current = lastCommittedBaseRef.current;
       dictationSessionRef.current = "";
+      dictationFinalPartsRef.current = [];
+      dictationInterimPartRef.current = "";
       lastCommittedSessionRef.current = "";
       setDictationPreview("");
       showToast("Última sessão de ditado removida.");
@@ -3144,11 +3156,31 @@ function PrimeiraResposta({ setTelaAtual }) {
     recognition.interimResults = true;
     dictationBaseRef.current = dados.historicoNarrado || "";
     dictationSessionRef.current = "";
+    dictationFinalPartsRef.current = [];
+    dictationInterimPartRef.current = "";
     setDictationPreview("");
 
     recognition.onresult = (event) => {
-      const sessionTranscript = Array.from(event.results)
-        .map((result) => result[0]?.transcript?.trim())
+      const finalParts = [...dictationFinalPartsRef.current];
+      let interimPart = "";
+
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
+        const transcript = event.results[index][0]?.transcript?.trim() || "";
+        if (event.results[index].isFinal) {
+          finalParts[index] = transcript;
+        } else {
+          interimPart = transcript;
+        }
+      }
+
+      dictationFinalPartsRef.current = finalParts;
+      dictationInterimPartRef.current = interimPart;
+
+      const sessionTranscript = [...finalParts.filter(Boolean), interimPart]
         .filter(Boolean)
         .join(" ")
         .trim();
