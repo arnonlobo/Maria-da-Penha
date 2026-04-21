@@ -3207,7 +3207,7 @@ function PrimeiraResposta({ setTelaAtual }) {
 
     recognition.lang = "pt-BR";
     recognition.continuous = !isAndroid; // Para Android, usa false para prevenir duplicações longas
-    recognition.interimResults = true;
+    recognition.interimResults = !isAndroid; // Desabilita interim para Android para cortar o bug na raiz
     dictationBaseRef.current = dados.historicoNarrado || "";
     dictationSessionRef.current = "";
     dictationFinalPartsRef.current = [];
@@ -3225,25 +3225,25 @@ function PrimeiraResposta({ setTelaAtual }) {
       ) {
         const result = event.results[index];
         const transcript = result[0]?.transcript?.trim() || "";
-        const confidence = result[0]?.confidence || 0;
 
-        let shouldIgnore = false;
-
-        // Deduplicação defensiva nativa focado no bug do Android Chrome 
-        if (isAndroid && transcript) {
-          // Último bloco salvo consolidado
-          const prevFinal = [...finalParts].reverse().find(Boolean) || "";
-          
-          if (confidence === 0 && prevFinal.toLowerCase() === transcript.toLowerCase()) {
-            shouldIgnore = true;
-          }
+        if (result.isFinal) {
+          finalParts[index] = transcript;
+        } else {
+          interimPart = transcript;
         }
+      }
 
-        if (!shouldIgnore) {
-          if (result.isFinal) {
-            finalParts[index] = transcript;
-          } else {
-            interimPart = transcript;
+      // Correção robusta para Android Overlap Bug
+      // Caso algum finalPart já contenha o finalPart anterior (crescimento cumulativo em novo index)
+      if (isAndroid) {
+        for (let i = 1; i < finalParts.length; i++) {
+          if (finalParts[i] && finalParts[i - 1]) {
+            const prev = finalParts[i - 1].toLowerCase();
+            const curr = finalParts[i].toLowerCase();
+            // Se o trecho de agora "engole" o trecho de antes, descarte o de antes
+            if (curr.startsWith(prev) || curr.includes(prev)) {
+               finalParts[i - 1] = ""; 
+            }
           }
         }
       }
