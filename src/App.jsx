@@ -3206,8 +3206,8 @@ function PrimeiraResposta({ setTelaAtual }) {
     const isAndroid = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 
     recognition.lang = "pt-BR";
-    recognition.continuous = !isAndroid; // Para Android, usa false para prevenir duplicações longas
-    recognition.interimResults = !isAndroid; // Desabilita interim para Android para cortar o bug na raiz
+    recognition.continuous = true;
+    recognition.interimResults = true;
     dictationBaseRef.current = dados.historicoNarrado || "";
     dictationSessionRef.current = "";
     dictationFinalPartsRef.current = [];
@@ -3235,16 +3235,28 @@ function PrimeiraResposta({ setTelaAtual }) {
 
       // Correção robusta para Android Overlap Bug
       // Caso algum finalPart já contenha o finalPart anterior (crescimento cumulativo em novo index)
+      // O Android costuma re-emitir a frase toda em novos índices em vez de emitir só a palavra nova.
       if (isAndroid) {
         for (let i = 1; i < finalParts.length; i++) {
           if (finalParts[i] && finalParts[i - 1]) {
             const prev = finalParts[i - 1].toLowerCase();
             const curr = finalParts[i].toLowerCase();
-            // Se o trecho de agora "engole" o trecho de antes, descarte o de antes
+            // Se o trecho atual "engole" o trecho anterior inteiramente
             if (curr.startsWith(prev) || curr.includes(prev)) {
                finalParts[i - 1] = ""; 
             }
           }
+        }
+        
+        // Assegurar que o interim atual também não duplique o último final
+        if (interimPart) {
+           const prevFinal = [...finalParts].reverse().find(Boolean) || "";
+           if (prevFinal && (interimPart.toLowerCase().startsWith(prevFinal.toLowerCase()) || interimPart.toLowerCase().includes(prevFinal.toLowerCase()))) {
+               // Se o interimPart contém o finalPart, apague o finalPart da exibição momentânea 
+               // pois o interim já contempla todo o texto
+               const idx = finalParts.findLastIndex(p => p.toLowerCase() === prevFinal.toLowerCase());
+               if (idx !== -1) finalParts[idx] = "";
+           }
         }
       }
 
