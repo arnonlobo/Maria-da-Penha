@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   ShieldAlert,
   ClipboardList,
@@ -26,6 +26,9 @@ import {
   Clock3,
   HeartHandshake,
   ExternalLink,
+  Mic,
+  MicOff,
+  ImagePlus,
 } from "lucide-react";
 import instrucaoPdf from "./documento/Instrução.pdf";
 import capaHeaderImg from "./documento/Captura de tela 2026-04-05 194744.jpg";
@@ -195,6 +198,8 @@ const createInitialPrimeiraDados = () => ({
   tempoRelacao: "",
   tempoSeparacao: "",
   residencia: "",
+  enderecoGeolocalizado: "",
+  localizacaoGps: "",
   ciumento: false,
   naoAceitaTermino: false,
   usoDrogas: "",
@@ -211,6 +216,7 @@ const createInitialPrimeiraDados = () => ({
   filhosDetalhe: "",
   lesoes: "",
   dizeresAutor: "",
+  historicoNarrado: "",
   danos: "",
   provas: "",
   destinoVitima: "",
@@ -551,6 +557,135 @@ const downloadTextFile = (filename, text) => {
   URL.revokeObjectURL(url);
   showToast("Arquivo TXT gerado com sucesso.");
 };
+
+const formatFileSize = (size) => {
+  if (!Number.isFinite(size) || size <= 0) return "0 KB";
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+};
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Falha ao ler imagem."));
+    reader.readAsDataURL(file);
+  });
+
+const createSpeechRecognition = () => {
+  if (typeof window === "undefined") return null;
+  const Recognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  return Recognition ? new Recognition() : null;
+};
+
+const formatCoordinatesLabel = (latitude, longitude, accuracy) => {
+  const latitudeText = Number(latitude).toFixed(6);
+  const longitudeText = Number(longitude).toFixed(6);
+  const accuracyText = Number.isFinite(accuracy)
+    ? `Precisão aprox.: ${Math.round(accuracy)} m`
+    : "Precisão não informada";
+  return `GPS: ${latitudeText}, ${longitudeText} | ${accuracyText}`;
+};
+
+const formatReverseGeocodeAddress = (payload) => {
+  const address = payload?.address || {};
+  const line1 = [
+    address.road,
+    address.house_number,
+    address.neighbourhood || address.suburb,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const line2 = [
+    address.city || address.town || address.village || address.municipality,
+    address.state,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+  const formatted = [line1, line2].filter(Boolean).join(" | ");
+  return formatted || payload?.display_name || "";
+};
+
+const reverseGeocodeCoordinates = async (latitude, longitude) => {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
+  url.searchParams.set("zoom", "18");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("accept-language", "pt-BR");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Falha ao consultar o endereço.");
+  }
+
+  const payload = await response.json();
+  return {
+    displayName: payload?.display_name || "",
+    formattedAddress: formatReverseGeocodeAddress(payload),
+  };
+};
+
+const waitForImagesAndPrint = async (elementId) => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const container = document.getElementById(elementId);
+  if (!container) {
+    window.print();
+    return;
+  }
+
+  const images = Array.from(container.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.addEventListener("load", resolve, { once: true });
+          img.addEventListener("error", resolve, { once: true });
+        }),
+    ),
+  );
+
+  window.print();
+};
+
+const optimizeImageForDraft = (dataUrl, maxWidth = 1280, quality = 0.82) =>
+  new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve(dataUrl);
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, maxWidth / image.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        resolve(dataUrl);
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
 
 const getFonarRespostaLabel = (value) => {
   if (value === "sim") return "SIM";
@@ -952,6 +1087,8 @@ const normalizePrimeiraDados = (dados) => ({
   tempoRelacao: normalizeInlineText(dados?.tempoRelacao),
   tempoSeparacao: normalizeInlineText(dados?.tempoSeparacao),
   residencia: normalizeInlineText(dados?.residencia),
+  enderecoGeolocalizado: normalizeInlineText(dados?.enderecoGeolocalizado),
+  localizacaoGps: normalizeInlineText(dados?.localizacaoGps),
   usoDrogas: normalizeInlineText(dados?.usoDrogas),
   arma: normalizeInlineText(dados?.arma),
   motivo: normalizeInlineText(dados?.motivo),
@@ -966,6 +1103,7 @@ const normalizePrimeiraDados = (dados) => ({
   filhosDetalhe: normalizeInlineText(dados?.filhosDetalhe),
   lesoes: normalizeInlineText(dados?.lesoes),
   dizeresAutor: normalizeMultilineText(dados?.dizeresAutor),
+  historicoNarrado: normalizeMultilineText(dados?.historicoNarrado),
   danos: normalizeInlineText(dados?.danos),
   provas: normalizeInlineText(dados?.provas),
   destinoVitima: normalizeInlineText(dados?.destinoVitima),
@@ -2653,6 +2791,15 @@ function FonarAvulso({ setTelaAtual }) {
 function PrimeiraResposta({ setTelaAtual }) {
   const primeiraDraft = readDraft(DRAFT_STORAGE_KEYS.primeira);
   const primeiraDraftDados = primeiraDraft?.dados || {};
+  const primeiraDraftAnexos = Array.isArray(primeiraDraft?.anexosFoto)
+    ? primeiraDraft.anexosFoto.filter(
+        (foto) =>
+          foto &&
+          typeof foto.id === "string" &&
+          typeof foto.name === "string" &&
+          typeof foto.previewUrl === "string",
+      )
+    : [];
   const primeiraDadosIniciais = {
     ...createInitialPrimeiraDados(),
     ...primeiraDraftDados,
@@ -2700,8 +2847,14 @@ function PrimeiraResposta({ setTelaAtual }) {
       ? primeiraDraft.fonar
       : Array(19).fill(""),
   );
+  const [anexosFoto, setAnexosFoto] = useState(primeiraDraftAnexos);
+  const [isDictating, setIsDictating] = useState(false);
+  const [dictationPreview, setDictationPreview] = useState("");
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  const recognitionRef = useRef(null);
   const dadosNormalizados = normalizePrimeiraDados(dados);
+  const speechRecognitionSupported = !!createSpeechRecognition();
   const dataFatoCalculada = parseDateTime(dadosNormalizados.dataHoraFato);
   const prazoSegundaResposta = dataFatoCalculada
     ? new Date(dataFatoCalculada.getTime() + 72 * 60 * 60 * 1000)
@@ -2754,8 +2907,191 @@ function PrimeiraResposta({ setTelaAtual }) {
     setDados(createInitialPrimeiraDados());
     setOpenPessoaIndex("vitima");
     setFonar(Array(19).fill(""));
+    setAnexosFoto([]);
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsDictating(false);
+    setDictationPreview("");
+    setIsGettingLocation(false);
     setValidationErrors([]);
     showToast("Rascunho local descartado.");
+  };
+
+  const handleFotoQualificacaoChange = async (event) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
+
+    try {
+      const nextFiles = selectedFiles.slice(0, 4 - anexosFoto.length);
+      const nextAnexos = await Promise.all(
+        nextFiles.map(async (file) => {
+          const originalDataUrl = await readFileAsDataUrl(file);
+          const optimizedDataUrl = await optimizeImageForDraft(originalDataUrl);
+          return {
+            id: `${file.name}-${file.size}-${file.lastModified}`,
+            name: file.name,
+            size: file.size,
+            previewUrl: optimizedDataUrl,
+          };
+        }),
+      );
+
+      setAnexosFoto((current) => [...current, ...nextAnexos].slice(0, 4));
+
+      if (selectedFiles.length > nextFiles.length) {
+        showToast("Limite de 4 fotos temporárias atingido.", "error");
+      } else {
+        showToast("Foto anexada para pré-visualização no relatório.");
+      }
+    } catch (error) {
+      showToast("Não foi possível ler a imagem selecionada.", "error");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const removeFotoQualificacao = (id) => {
+    setAnexosFoto((current) => current.filter((foto) => foto.id !== id));
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      showToast("Geolocalização indisponível neste dispositivo.", "error");
+      return;
+    }
+
+    setIsGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const coordinatesLabel = formatCoordinatesLabel(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.accuracy,
+        );
+        try {
+          const geocoded = await reverseGeocodeCoordinates(
+            position.coords.latitude,
+            position.coords.longitude,
+          );
+
+          setDados((current) => ({
+            ...current,
+            residencia:
+              current.residencia ||
+              geocoded.formattedAddress ||
+              `Local obtido pelo celular. ${coordinatesLabel}`,
+            enderecoGeolocalizado:
+              geocoded.formattedAddress || geocoded.displayName || "",
+            localizacaoGps: coordinatesLabel,
+          }));
+          showToast("Localização e endereço capturados com sucesso.");
+        } catch {
+          setDados((current) => ({
+            ...current,
+            residencia:
+              current.residencia ||
+              `Local obtido pelo celular. ${coordinatesLabel}`,
+            enderecoGeolocalizado: "",
+            localizacaoGps: coordinatesLabel,
+          }));
+          showToast(
+            "GPS capturado, mas não foi possível converter em endereço.",
+            "error",
+          );
+        } finally {
+          setIsGettingLocation(false);
+        }
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        if (error?.code === error.PERMISSION_DENIED) {
+          showToast("Permissão de localização negada.", "error");
+          return;
+        }
+        if (error?.code === error.POSITION_UNAVAILABLE) {
+          showToast("Não foi possível determinar a localização.", "error");
+          return;
+        }
+        if (error?.code === error.TIMEOUT) {
+          showToast("Tempo esgotado ao obter a localização.", "error");
+          return;
+        }
+        showToast("Falha ao capturar a localização atual.", "error");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  };
+
+  const stopDictation = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsDictating(false);
+    setDictationPreview("");
+  };
+
+  const startDictation = () => {
+    const recognition = createSpeechRecognition();
+    if (!recognition) {
+      showToast(
+        "Ditado por voz indisponível neste navegador. Use Chrome ou Edge.",
+        "error",
+      );
+      return;
+    }
+
+    recognition.lang = "pt-BR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        if (event.results[index].isFinal) {
+          finalTranscript += event.results[index][0].transcript;
+        } else {
+          interimTranscript += event.results[index][0].transcript;
+        }
+      }
+
+      if (finalTranscript.trim()) {
+        setDados((current) => ({
+          ...current,
+          historicoNarrado: normalizeMultilineText(
+            `${current.historicoNarrado || ""}${
+              current.historicoNarrado ? " " : ""
+            }${finalTranscript}`.trim(),
+          ),
+        }));
+      }
+
+      setDictationPreview(interimTranscript.trim());
+    };
+
+    recognition.onerror = () => {
+      setIsDictating(false);
+      setDictationPreview("");
+      showToast("Falha ao capturar o áudio do ditado.", "error");
+    };
+
+    recognition.onend = () => {
+      setIsDictating(false);
+      setDictationPreview("");
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsDictating(true);
+    showToast("Ditado iniciado. Revise o texto antes de gerar o relatório.");
   };
 
   // Funções de Update de Pessoas
@@ -2795,9 +3131,12 @@ function PrimeiraResposta({ setTelaAtual }) {
       step,
       dados,
       fonar,
+      anexosFoto,
       openPessoaIndex,
     });
-  }, [step, dados, fonar, openPessoaIndex]);
+  }, [step, dados, fonar, anexosFoto, openPessoaIndex]);
+
+  useEffect(() => () => stopDictation(), []);
 
   return (
     <div className="p-5 pb-24 print:p-0 print:pb-0">
@@ -3023,6 +3362,76 @@ function PrimeiraResposta({ setTelaAtual }) {
             </button>
           </div>
 
+          <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm space-y-4">
+            <div className="border-b border-zinc-100 pb-3">
+              <h3 className="font-black text-zinc-800 uppercase tracking-widest text-[11px]">
+                Foto na Qualificação
+              </h3>
+              <p className="mt-2 text-sm text-zinc-600 font-medium leading-relaxed">
+                Melhor forma de implementar: foto temporária no atendimento,
+                pré-visualização imediata e inclusão no PDF final, sem gravar a
+                imagem no rascunho local.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center transition-colors hover:bg-zinc-100">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFotoQualificacaoChange}
+              />
+              <span className="inline-flex items-center text-sm font-bold text-zinc-700">
+                <ImagePlus className="mr-2 h-4 w-4" strokeWidth={2} />
+                Anexar foto da qualificação
+              </span>
+            </label>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+              As fotos abaixo ficam apenas nesta sessão para não sobrecarregar o
+              armazenamento local do navegador.
+            </div>
+
+            {anexosFoto.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {anexosFoto.map((foto, index) => (
+                  <div
+                    key={foto.id}
+                    className="overflow-hidden rounded-2xl border border-zinc-200 bg-white"
+                  >
+                    <img
+                      src={foto.previewUrl}
+                      alt={`Anexo ${index + 1}`}
+                      className="h-32 w-full object-cover"
+                    />
+                    <div className="space-y-2 p-3">
+                      <div>
+                        <p className="text-xs font-black text-zinc-800">
+                          Anexo {index + 1}
+                        </p>
+                        <p className="truncate text-xs text-zinc-500">
+                          {foto.name}
+                        </p>
+                        <p className="text-[11px] text-zinc-400">
+                          {formatFileSize(foto.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFotoQualificacao(foto.id)}
+                        className="inline-flex items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-100"
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={2} />
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {step === 2 && validationErrors.length > 0 && (
             <ValidationMessage
               tone="error"
@@ -3138,9 +3547,23 @@ function PrimeiraResposta({ setTelaAtual }) {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
-                  Local do Fato / Moradia
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <label className="ml-1 block text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                    Local do Fato / Moradia
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    disabled={isGettingLocation}
+                    className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-wide transition-colors ${
+                      isGettingLocation
+                        ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
+                        : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {isGettingLocation ? "Obtendo GPS..." : "Usar Localização Atual"}
+                  </button>
+                </div>
                 <input
                   type="text"
                   placeholder="Ex: Casa alugada no nome da vítima"
@@ -3150,6 +3573,19 @@ function PrimeiraResposta({ setTelaAtual }) {
                     setDados({ ...dados, residencia: e.target.value })
                   }
                 />
+                <p className="mt-2 text-[11px] font-medium leading-relaxed text-zinc-500">
+                  O botão é opcional. Se preferir, digite manualmente o endereço do fato.
+                </p>
+                {dados.enderecoGeolocalizado && (
+                  <p className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-900">
+                    Endereço sugerido pelo GPS: {dados.enderecoGeolocalizado}
+                  </p>
+                )}
+                {dados.localizacaoGps && (
+                  <p className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] font-medium text-zinc-600">
+                    {dados.localizacaoGps}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3 border-t border-zinc-100 pt-4">
                 <div>
@@ -3300,6 +3736,61 @@ function PrimeiraResposta({ setTelaAtual }) {
                     setDados({ ...dados, versaoVitima: e.target.value })
                   }
                 ></textarea>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-zinc-700">
+                      Histórico Falado
+                    </p>
+                    <p className="mt-1 text-sm font-medium leading-relaxed text-zinc-600">
+                      Melhor implementação para uso rápido: um botão de ditado
+                      que vai escrevendo neste campo e depois segue para revisão
+                      manual antes do relatório.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={isDictating ? stopDictation : startDictation}
+                    disabled={!speechRecognitionSupported && !isDictating}
+                    className={`inline-flex items-center rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+                      isDictating
+                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                        : "bg-zinc-950 text-white hover:bg-zinc-800"
+                    } ${
+                      !speechRecognitionSupported && !isDictating
+                        ? "cursor-not-allowed opacity-50"
+                        : ""
+                    }`}
+                  >
+                    {isDictating ? (
+                      <MicOff className="mr-1.5 h-4 w-4" strokeWidth={2} />
+                    ) : (
+                      <Mic className="mr-1.5 h-4 w-4" strokeWidth={2} />
+                    )}
+                    {isDictating ? "Parar ditado" : "Iniciar ditado"}
+                  </button>
+                </div>
+
+                <textarea
+                  rows="4"
+                  placeholder="Ex: a vítima relatou que o autor chegou exaltado, proferiu ameaças e arremessou objetos no interior da residência..."
+                  className={`${compactFieldClassName} mt-3`}
+                  value={[dados.historicoNarrado, dictationPreview]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim()}
+                  disabled={isDictating}
+                  onChange={(e) =>
+                    setDados({ ...dados, historicoNarrado: e.target.value })
+                  }
+                ></textarea>
+
+                <p className="mt-2 text-[11px] font-medium text-zinc-500">
+                  {speechRecognitionSupported
+                    ? "Compatível com navegadores que expõem reconhecimento de voz. O texto deve ser conferido antes do uso."
+                    : "Este navegador não expõe reconhecimento de voz; o campo continua disponível para colagem ou digitação."}
+                </p>
               </div>
               <div>
                 <label className="block text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1 ml-1">
@@ -3671,6 +4162,8 @@ Relação: ${dadosNormalizados.relacao || "[N/I]"} | Filhos comuns: ${dadosNorma
 Detalhe de filhos / crianças: ${dadosNormalizados.filhosDetalhe || "[N/I]"}
 Tempo de relacionamento: ${dadosNormalizados.tempoRelacao || "[N/I]"} | Tempo de separação: ${dadosNormalizados.tempoSeparacao || "[N/I]"}
 Moradia / local do fato: ${dadosNormalizados.residencia || "[N/I]"}
+Endereço geolocalizado: ${dadosNormalizados.enderecoGeolocalizado || "[N/I]"}
+Localização GPS capturada: ${dadosNormalizados.localizacaoGps || "[N/I]"}
 Autor ciumento / possessivo: ${dadosNormalizados.ciumento ? "SIM" : "NÃO"} | Não aceita término: ${dadosNormalizados.naoAceitaTermino ? "SIM" : "NÃO"}
 Uso de álcool / drogas: ${dadosNormalizados.usoDrogas || "[N/I]"} | Arma de fogo: ${dadosNormalizados.arma || "[N/I]"}
 Motivo do atrito: ${dadosNormalizados.motivo || "[N/I]"}
@@ -3678,12 +4171,23 @@ Versão da vítima: ${dadosNormalizados.versaoVitima || "[N/I]"}
 Versão do autor: ${dadosNormalizados.versaoAutor || "[N/I]"}
 Lesões aparentes: ${dadosNormalizados.lesoes || "[N/I]"}
 Dizeres / ameaças do autor: ${dadosNormalizados.dizeresAutor || "[N/I]"}
+Histórico falado (rascunho): ${dadosNormalizados.historicoNarrado || "[N/I]"}
 Danos / objetos atingidos: ${dadosNormalizados.danos || "[N/I]"}
 Sinais / desordem no local: ${dadosNormalizados.desordem || "[N/I]"}
 Atendimento médico: ${dadosNormalizados.socorro || "[N/I]"}
 Materiais apreendidos: ${dadosNormalizados.materiais || "[N/I]"}
 MPU ativa: ${dadosNormalizados.mpu || "[N/I]"}
 Provas / elementos disponíveis: ${dadosNormalizados.provas || "[N/I]"}
+Fotos anexadas para conferência: ${
+              anexosFoto.length > 0
+                ? anexosFoto
+                    .map(
+                      (foto, index) =>
+                        `Anexo ${index + 1}: ${foto.name} (${formatFileSize(foto.size)})`,
+                    )
+                    .join(" | ")
+                : "[N/I]"
+            }
 Destino da vítima / proteção: ${dadosNormalizados.destinoVitima || "[N/I]"}
 Situação do autor: ${dadosNormalizados.destinoAutor || "[N/I]"}
 Encaminhamentos / acompanhamento: ${dadosNormalizados.acompanhamento || "[N/I]"}
@@ -3717,6 +4221,120 @@ ${textoReds}
 TAREFA:
 Produza somente o histórico final do REDS, pronto para revisão policial.`;
 
+            const qualificacaoSecoes = [
+              {
+                titulo: "Vítima",
+                linhas: [
+                  ["Nome", dadosNormalizados.vitima.nome || "[N/I]"],
+                  [
+                    "Documentos",
+                    `RG: ${dadosNormalizados.vitima.rg || "[N/I]"} | CPF: ${
+                      dadosNormalizados.vitima.cpf || "[N/I]"
+                    }`,
+                  ],
+                  [
+                    "Nascimento / Mãe",
+                    `${dadosNormalizados.vitima.nasc || "[N/I]"} | ${
+                      dadosNormalizados.vitima.mae || "[N/I]"
+                    }`,
+                  ],
+                  ["Telefone", dadosNormalizados.vitima.telefone || "[N/I]"],
+                  ["Endereço", dadosNormalizados.vitima.endereco || "[N/I]"],
+                ],
+              },
+              {
+                titulo: "Autor",
+                linhas: [
+                  ["Nome", dadosNormalizados.autor.nome || "[N/I]"],
+                  [
+                    "Documentos",
+                    `RG: ${dadosNormalizados.autor.rg || "[N/I]"} | CPF: ${
+                      dadosNormalizados.autor.cpf || "[N/I]"
+                    }`,
+                  ],
+                  [
+                    "Nascimento / Mãe",
+                    `${dadosNormalizados.autor.nasc || "[N/I]"} | ${
+                      dadosNormalizados.autor.mae || "[N/I]"
+                    }`,
+                  ],
+                  ["Telefone", dadosNormalizados.autor.telefone || "[N/I]"],
+                  ["Endereço", dadosNormalizados.autor.endereco || "[N/I]"],
+                ],
+              },
+            ];
+
+            const dinamicaSecoes = [
+              ["Origem do acionamento", dadosNormalizados.origemAcionamento || "[N/I]"],
+              ["Data / hora do fato", dadosNormalizados.dataHoraFato || "[N/I]"],
+              [
+                "Relação / filhos comuns",
+                `${dadosNormalizados.relacao || "[N/I]"} | ${
+                  dadosNormalizados.temFilhos || "[N/I]"
+                }`,
+              ],
+              [
+                "Tempo de relacionamento / separação",
+                `${dadosNormalizados.tempoRelacao || "[N/I]"} | ${
+                  dadosNormalizados.tempoSeparacao || "[N/I]"
+                }`,
+              ],
+              ["Filhos / crianças relacionadas", dadosNormalizados.filhosDetalhe || "[N/I]"],
+              ["Moradia / local do fato", dadosNormalizados.residencia || "[N/I]"],
+              ["Endereço geolocalizado", dadosNormalizados.enderecoGeolocalizado || "[N/I]"],
+              ["Localização GPS capturada", dadosNormalizados.localizacaoGps || "[N/I]"],
+              [
+                "Perfil do autor",
+                `Ciumento/Possessivo: ${
+                  dadosNormalizados.ciumento ? "SIM" : "NÃO"
+                } | Não aceita término: ${
+                  dadosNormalizados.naoAceitaTermino ? "SIM" : "NÃO"
+                }`,
+              ],
+              [
+                "Uso de álcool / drogas e arma",
+                `${dadosNormalizados.usoDrogas || "[N/I]"} | ${
+                  dadosNormalizados.arma || "[N/I]"
+                }`,
+              ],
+              ["Motivo do atrito", dadosNormalizados.motivo || "[N/I]"],
+              ["Versão da vítima", dadosNormalizados.versaoVitima || "[N/I]"],
+              ["Versão do autor", dadosNormalizados.versaoAutor || "[N/I]"],
+              ["Lesões aparentes", dadosNormalizados.lesoes || "[N/I]"],
+              ["Dizeres / ameaças", dadosNormalizados.dizeresAutor || "[N/I]"],
+              ["Danos / objetos atingidos", dadosNormalizados.danos || "[N/I]"],
+              ["Sinais / desordem", dadosNormalizados.desordem || "[N/I]"],
+              ["Atendimento médico", dadosNormalizados.socorro || "[N/I]"],
+              ["Materiais apreendidos", dadosNormalizados.materiais || "[N/I]"],
+              ["MPU ativa", dadosNormalizados.mpu || "[N/I]"],
+              ["Provas / elementos", dadosNormalizados.provas || "[N/I]"],
+              ["Destino da vítima / proteção", dadosNormalizados.destinoVitima || "[N/I]"],
+              ["Situação do autor", dadosNormalizados.destinoAutor || "[N/I]"],
+              ["Encaminhamentos", dadosNormalizados.acompanhamento || "[N/I]"],
+            ];
+
+            const dinamicaResumida = dinamicaSecoes.filter(([label, value]) => {
+              if (!value || value === "[N/I]") return false;
+              return [
+                "Origem do acionamento",
+                "Data / hora do fato",
+                "Relação / filhos comuns",
+                "Filhos / crianças relacionadas",
+                "Moradia / local do fato",
+                "Endereço geolocalizado",
+                "Localização GPS capturada",
+                "Motivo do atrito",
+                "Versão da vítima",
+                "Versão do autor",
+                "Lesões aparentes",
+                "Dizeres / ameaças",
+                "Provas / elementos",
+                "Destino da vítima / proteção",
+                "Situação do autor",
+                "Encaminhamentos",
+              ].includes(label);
+            });
+
             return (
               <>
                 <div
@@ -3740,11 +4358,11 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
                     </span>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => window.print()}
+                        onClick={() => waitForImagesAndPrint("print-area")}
                         className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
                       >
                         <Printer className="w-4 h-4 mr-1.5" strokeWidth={2} />{" "}
-                        Imprimir
+                        Imprimir / PDF
                       </button>
                       <button
                         onClick={() => copyToClipboard(textoReds)}
@@ -3756,8 +4374,235 @@ Produza somente o histórico final do REDS, pronto para revisão policial.`;
                     </div>
                   </div>
 
-                  {/* Este é o bloco que será impresso / gerado no PDF. Com a classe print:text-black garantimos leitura */}
-                  <pre className="text-[11px] text-zinc-700 whitespace-pre-wrap font-mono bg-zinc-50/50 p-4 rounded-xl max-h-96 overflow-y-auto border border-zinc-100 leading-relaxed shadow-inner print:max-h-full print:bg-white print:border-none print:text-black print:text-[12px] print:overflow-visible">
+                  <div className="rounded-[28px] border border-zinc-200 bg-white print:rounded-none print:border-none">
+                    <div className="rounded-t-[28px] bg-zinc-950 px-5 py-5 text-white print:rounded-none">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={logoHeaderImg}
+                          alt="Logo institucional"
+                          className="h-14 w-14 rounded-2xl bg-white/10 object-contain p-1"
+                        />
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-yellow-400">
+                            Guia Operacional
+                          </p>
+                          <h3 className="mt-1 text-xl font-black tracking-tight">
+                            Relatório Estruturado da 1ª Resposta
+                          </h3>
+                          <p className="mt-1 text-sm text-zinc-300">
+                            Documento para conferência, impressão e geração de PDF.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 p-5 print:p-0 print:pt-5">
+                      <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                              Classificação do Caso
+                            </p>
+                            <h4 className="mt-1 text-base font-black text-zinc-900">
+                              Avaliação Consolidada da Ocorrência
+                            </h4>
+                          </div>
+                          <div className={`${risco.cor} rounded-2xl px-4 py-3 text-center text-white`}>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/80">
+                              Risco
+                            </p>
+                            <p className="text-lg font-black uppercase">{risco.nivel}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-zinc-700 print:grid-cols-2">
+                          <div className="rounded-xl border border-zinc-200 bg-white px-3 py-3 print:border-zinc-300">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                              Respostas SIM
+                            </p>
+                            <p className="mt-1 text-lg font-black text-zinc-900">{simCount}</p>
+                          </div>
+                          <div className="rounded-xl border border-zinc-200 bg-white px-3 py-3 print:border-zinc-300">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+                              Respostas NS/NA
+                            </p>
+                            <p className="mt-1 text-lg font-black text-zinc-900">{nsNaCount}</p>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="space-y-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                            Qualificação
+                          </p>
+                          <h4 className="mt-1 text-base font-black text-zinc-900">
+                            Partes Envolvidas
+                          </h4>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2">
+                          {qualificacaoSecoes.map((secao) => (
+                            <div
+                              key={secao.titulo}
+                              className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white"
+                            >
+                              <p className="border-b border-zinc-200 pb-2 text-[11px] font-black uppercase tracking-widest text-zinc-700">
+                                {secao.titulo}
+                              </p>
+                              <div className="mt-3 space-y-2">
+                                {secao.linhas.map(([label, valor]) => (
+                                  <div key={label}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                      {label}
+                                    </p>
+                                    <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-zinc-800">
+                                      {valor}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      {dadosNormalizados.testemunhas.length > 0 && (
+                        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                              Testemunhas
+                            </p>
+                            <h4 className="mt-1 text-base font-black text-zinc-900">
+                              Pessoas Qualificadas no Atendimento
+                            </h4>
+                          </div>
+                          <div className="mt-4 grid gap-4 md:grid-cols-2 print:grid-cols-2">
+                            {dadosNormalizados.testemunhas.map((testemunha, index) => (
+                              <div
+                                key={`testemunha-doc-${index}`}
+                                className="rounded-2xl border border-zinc-200 bg-white p-4 print:border-zinc-300"
+                              >
+                                <p className="border-b border-zinc-200 pb-2 text-[11px] font-black uppercase tracking-widest text-zinc-700">
+                                  Testemunha {index + 1}
+                                </p>
+                                <div className="mt-3 space-y-2">
+                                  <p className="text-sm font-medium text-zinc-800">
+                                    <span className="font-black text-zinc-500">Nome:</span> {testemunha.nome || "[N/I]"}
+                                  </p>
+                                  <p className="text-sm font-medium text-zinc-800">
+                                    <span className="font-black text-zinc-500">RG/CPF:</span> {testemunha.rg || "[N/I]"} | {testemunha.cpf || "[N/I]"}
+                                  </p>
+                                  <p className="text-sm font-medium text-zinc-800">
+                                    <span className="font-black text-zinc-500">Nascimento/Telefone:</span> {testemunha.nasc || "[N/I]"} | {testemunha.telefone || "[N/I]"}
+                                  </p>
+                                  <p className="text-sm font-medium text-zinc-800">
+                                    <span className="font-black text-zinc-500">Mãe:</span> {testemunha.mae || "[N/I]"}
+                                  </p>
+                                  <p className="whitespace-pre-wrap text-sm font-medium text-zinc-800">
+                                    <span className="font-black text-zinc-500">Endereço:</span> {testemunha.endereco || "[N/I]"}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                            Síntese Operacional
+                          </p>
+                          <h4 className="mt-1 text-base font-black text-zinc-900">
+                            Rascunho para Confecção do REDS
+                          </h4>
+                        </div>
+                        <div className="mt-4 space-y-4">
+                          {dinamicaResumida.map(([label, valor]) => (
+                            <div key={label}>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                {label}
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-zinc-800">
+                                {valor}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      {dadosNormalizados.historicoNarrado && (
+                        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                            Histórico Falado
+                          </p>
+                          <h4 className="mt-1 text-base font-black text-zinc-900">
+                            Texto Capturado por Ditado para Revisão
+                          </h4>
+                          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800">
+                            {dadosNormalizados.historicoNarrado}
+                          </p>
+                        </section>
+                      )}
+
+                      {anexosFoto.length > 0 && (
+                        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                            Anexos Fotográficos
+                          </p>
+                          <h4 className="mt-1 text-base font-black text-zinc-900">
+                            Registros Visuais Vinculados à Qualificação
+                          </h4>
+                          <div className="mt-4 space-y-4">
+                            {anexosFoto.map((foto, index) => (
+                              <figure
+                                key={foto.id}
+                                className="overflow-hidden rounded-xl border border-zinc-200 bg-white print:break-inside-avoid print:border-zinc-300"
+                              >
+                                <img
+                                  src={foto.previewUrl}
+                                  alt={`Foto anexada ${index + 1}`}
+                                  loading="eager"
+                                  decoding="sync"
+                                  className="h-auto max-h-[420px] w-full object-contain bg-zinc-100 print:max-h-[520px]"
+                                />
+                                <figcaption className="px-3 py-2 text-[11px] font-medium text-zinc-600">
+                                  Anexo {index + 1}: {foto.name} • {formatFileSize(foto.size)}
+                                </figcaption>
+                              </figure>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:border-zinc-300 print:bg-white">
+                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+                          Prompt Para IA
+                        </p>
+                        <h4 className="mt-1 text-base font-black text-zinc-900">
+                          Texto a Ser Usado na Geração do Histórico Final
+                        </h4>
+                        <pre className="mt-4 whitespace-pre-wrap rounded-xl border border-zinc-200 bg-white p-4 text-[11px] leading-relaxed text-zinc-800 print:border-zinc-300">
+                          {promptIa}
+                        </pre>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm print:hidden">
+                  <div className="flex justify-between items-center mb-3 border-b border-zinc-100 pb-2">
+                    <span className="text-[11px] font-black text-zinc-500 tracking-widest uppercase ml-1">
+                      Texto Corrido para Cópia
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(textoReds)}
+                      className="bg-zinc-100 hover:bg-yellow-500 text-zinc-700 hover:text-zinc-950 py-2 px-3 rounded-xl text-xs flex items-center font-bold transition-colors active:scale-95 shadow-sm"
+                    >
+                      <Copy className="w-4 h-4 mr-1.5" strokeWidth={2} /> Copiar
+                      Texto
+                    </button>
+                  </div>
+                  <pre className="text-[11px] text-zinc-700 whitespace-pre-wrap font-mono bg-zinc-50/50 p-4 rounded-xl max-h-96 overflow-y-auto border border-zinc-100 leading-relaxed shadow-inner">
                     {textoReds}
                   </pre>
                 </div>
