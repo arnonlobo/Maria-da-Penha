@@ -3203,8 +3203,10 @@ function PrimeiraResposta({ setTelaAtual }) {
       return;
     }
 
+    const isAndroid = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+
     recognition.lang = "pt-BR";
-    recognition.continuous = true;
+    recognition.continuous = !isAndroid; // Para Android, usa false para prevenir duplicações longas
     recognition.interimResults = true;
     dictationBaseRef.current = dados.historicoNarrado || "";
     dictationSessionRef.current = "";
@@ -3221,11 +3223,28 @@ function PrimeiraResposta({ setTelaAtual }) {
         index < event.results.length;
         index += 1
       ) {
-        const transcript = event.results[index][0]?.transcript?.trim() || "";
-        if (event.results[index].isFinal) {
-          finalParts[index] = transcript;
-        } else {
-          interimPart = transcript;
+        const result = event.results[index];
+        const transcript = result[0]?.transcript?.trim() || "";
+        const confidence = result[0]?.confidence || 0;
+
+        let shouldIgnore = false;
+
+        // Deduplicação defensiva nativa focado no bug do Android Chrome 
+        if (isAndroid && transcript) {
+          // Último bloco salvo consolidado
+          const prevFinal = [...finalParts].reverse().find(Boolean) || "";
+          
+          if (confidence === 0 && prevFinal.toLowerCase() === transcript.toLowerCase()) {
+            shouldIgnore = true;
+          }
+        }
+
+        if (!shouldIgnore) {
+          if (result.isFinal) {
+            finalParts[index] = transcript;
+          } else {
+            interimPart = transcript;
+          }
         }
       }
 
