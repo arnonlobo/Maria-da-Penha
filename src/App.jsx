@@ -633,6 +633,58 @@ const reverseGeocodeCoordinates = async (latitude, longitude) => {
   };
 };
 
+const dedupeRepeatedSpeechSegments = (value = "") => {
+  const normalized = normalizeMultilineText(value);
+  if (!normalized) return "";
+
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return "";
+
+  const collapsedSingles = [];
+  tokens.forEach((token) => {
+    const previous = collapsedSingles[collapsedSingles.length - 1];
+    if (previous && previous.toLowerCase() === token.toLowerCase()) return;
+    collapsedSingles.push(token);
+  });
+
+  const collapsedPhrases = [];
+  for (let index = 0; index < collapsedSingles.length; index += 1) {
+    let skip = false;
+
+    for (let size = 4; size >= 2; size -= 1) {
+      if (index - size + 1 < 0 || index + size >= collapsedSingles.length) {
+        continue;
+      }
+
+      const previousSlice = collapsedSingles
+        .slice(index - size + 1, index + 1)
+        .map((token) => token.toLowerCase())
+        .join(" ");
+      const nextSlice = collapsedSingles
+        .slice(index + 1, index + 1 + size)
+        .map((token) => token.toLowerCase())
+        .join(" ");
+
+      if (previousSlice && previousSlice === nextSlice) {
+        skip = true;
+        break;
+      }
+    }
+
+    if (!skip) {
+      collapsedPhrases.push(collapsedSingles[index]);
+    }
+  }
+
+  const result = collapsedPhrases.join(" ");
+
+  return result
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
+    .trim();
+};
+
 const waitForImagesAndPrint = async (elementId) => {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const container = document.getElementById(elementId);
@@ -3051,7 +3103,7 @@ function PrimeiraResposta({ setTelaAtual }) {
   };
 
   const mergeDictationText = (baseText, sessionText) =>
-    normalizeMultilineText(
+    dedupeRepeatedSpeechSegments(
       [baseText, sessionText].filter(Boolean).join(baseText && sessionText ? " " : ""),
     );
 
@@ -3185,8 +3237,11 @@ function PrimeiraResposta({ setTelaAtual }) {
         .join(" ")
         .trim();
 
-      dictationSessionRef.current = sessionTranscript;
-      setDictationPreview(sessionTranscript);
+      const cleanedSessionTranscript =
+        dedupeRepeatedSpeechSegments(sessionTranscript);
+
+      dictationSessionRef.current = cleanedSessionTranscript;
+      setDictationPreview(cleanedSessionTranscript);
     };
 
     recognition.onerror = () => {
